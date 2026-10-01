@@ -1,10 +1,13 @@
 package com.example.ui.screens.playlist
 
+import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,22 +21,29 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material.icons.outlined.QueueMusic
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -57,13 +67,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -83,7 +94,7 @@ import com.example.ui.theme.F2WTextPrimary
 import com.example.ui.theme.F2WTextSecondary
 import com.example.ui.theme.F2WTextTertiary
 import com.example.ui.theme.F2WVioletAccent
-import kotlinx.coroutines.launch
+import com.example.util.media.AudioCoverHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,6 +113,9 @@ fun PlaylistDetailScreen(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var renameText by remember { mutableStateOf(currentPlaylist?.name ?: "") }
     var showMenu by remember { mutableStateOf(false) }
+
+    // Reordering item state
+    var itemForReordering by remember { mutableStateOf<Pair<Int, PlaylistItemModel>?>(null) }
 
     LaunchedEffect(playlistId) {
         playlistManager.playlistUpdates.collect {
@@ -153,7 +167,10 @@ fun PlaylistDetailScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
@@ -166,34 +183,37 @@ fun PlaylistDetailScreen(
                         Text(
                             text = if (isAudio) "AUDIO PLAYLIST" else "VIDEO PLAYLIST",
                             color = if (isAudio) F2WVioletAccent else F2WCyanPrimary,
-                            fontSize = 9.5.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "${playlist.items.size} items • ${playlist.totalDurationText}",
-                        color = F2WTextTertiary,
+                        color = F2WTextSecondary,
                         fontSize = 11.5.sp
                     )
                 }
             }
 
+            // 3-dots Menu for Playlist Actions
             Box {
-                IconButton(onClick = { showMenu = true }) {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.testTag("playlist_menu_btn")
+                ) {
                     Icon(
                         imageVector = Icons.Filled.MoreVert,
-                        contentDescription = "Options",
-                        tint = Color.White
+                        contentDescription = "More Options",
+                        tint = F2WTextSecondary
                     )
                 }
+
                 DropdownMenu(
                     expanded = showMenu,
-                    onDismissRequest = { showMenu = false },
-                    modifier = Modifier.background(F2WSurfaceElevated)
+                    onDismissRequest = { showMenu = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Rename Playlist", color = F2WTextPrimary) },
+                        text = { Text("Rename Playlist") },
                         leadingIcon = {
                             Icon(Icons.Filled.Edit, contentDescription = null, tint = F2WCyanPrimary)
                         },
@@ -288,19 +308,19 @@ fun PlaylistDetailScreen(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Content: List of Items or Empty State
+        // Content: List of Items with Hold / Drag Reordering
         if (playlist.items.isEmpty()) {
             F2WEmptyState(
                 icon = if (isAudio) Icons.Filled.Audiotrack else Icons.Filled.Videocam,
                 title = if (isAudio) "Playlist ya Audio Haina Nyimbo" else "Playlist Haina Video Bado",
                 description = if (isAudio)
-                    "Bofya kitufe cha chini kuongeza nyimbo unazopenda kwenye playlist hii."
+                    "Bofya kitufe cha juu kuongeza nyimbo unazopenda kwenye playlist hii."
                 else
-                    "Bofya kitufe cha chini kuongeza video unazopenda kwenye playlist hii.",
+                    "Bofya kitufe cha juu kuongeza video unazopenda kwenye playlist hii.",
                 actionLabel = if (isAudio) "Ongeza Audio" else "Ongeza Video",
                 actionIcon = Icons.Filled.Add,
                 onActionClick = { showAddMediaSheet = true },
-                tipText = "Video/Audio zitachezwa kwa mfuatano wa oda",
+                tipText = "Shikilia (hold) na kusogeza nyimbo juu au chini kubadili mpangilio",
                 testTag = "empty_playlist_state"
             )
         } else {
@@ -308,15 +328,31 @@ fun PlaylistDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 100.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 110.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 itemsIndexed(playlist.items, key = { _, item -> item.id }) { index, item ->
                     PlaylistItemRow(
                         index = index,
+                        totalCount = playlist.items.size,
                         item = item,
                         isAudio = isAudio,
                         onClick = { onPlayAll(playlist, index) },
+                        onMoveUp = {
+                            if (index > 0) {
+                                playlistManager.movePlaylistItem(playlist.id, index, index - 1)
+                                currentPlaylist = playlistManager.getPlaylistById(playlist.id)
+                            }
+                        },
+                        onMoveDown = {
+                            if (index < playlist.items.lastIndex) {
+                                playlistManager.movePlaylistItem(playlist.id, index, index + 1)
+                                currentPlaylist = playlistManager.getPlaylistById(playlist.id)
+                            }
+                        },
+                        onOpenReorderSheet = {
+                            itemForReordering = Pair(index, item)
+                        },
                         onRemove = {
                             playlistManager.removeItemFromPlaylist(playlist.id, item.id)
                             currentPlaylist = playlistManager.getPlaylistById(playlist.id)
@@ -326,6 +362,127 @@ fun PlaylistDetailScreen(
                 }
             }
         }
+    }
+
+    // Reorder Position Dialog (when holding / tapping reorder handle)
+    itemForReordering?.let { (index, item) ->
+        AlertDialog(
+            onDismissRequest = { itemForReordering = null },
+            containerColor = Color(0xFF1B202D),
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.DragHandle,
+                    contentDescription = null,
+                    tint = Color(0xFF10B981),
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Badili Nafasi ya Wimbo",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "\"${item.title}\" (Ipo nafasi ya #${index + 1})",
+                        color = F2WTextSecondary,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    // Option 1: Move to Top
+                    if (index > 0) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    playlistManager.movePlaylistItem(playlist.id, index, 0)
+                                    currentPlaylist = playlistManager.getPlaylistById(playlist.id)
+                                    itemForReordering = null
+                                    Toast.makeText(context, "Imepelekwa juu kabisa (#1)", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(vertical = 12.dp, horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.VerticalAlignTop, contentDescription = null, tint = Color(0xFF10B981))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Peleka Juu Kabisa (Namba 1)", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    // Option 2: Move Up
+                    if (index > 0) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    playlistManager.movePlaylistItem(playlist.id, index, index - 1)
+                                    currentPlaylist = playlistManager.getPlaylistById(playlist.id)
+                                    itemForReordering = null
+                                }
+                                .padding(vertical = 12.dp, horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.ArrowUpward, contentDescription = null, tint = Color(0xFF10B981))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Sogeza Juu kwa Nafasi 1 (#${index})", color = Color.White, fontSize = 14.sp)
+                        }
+                    }
+
+                    // Option 3: Move Down
+                    if (index < playlist.items.lastIndex) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    playlistManager.movePlaylistItem(playlist.id, index, index + 1)
+                                    currentPlaylist = playlistManager.getPlaylistById(playlist.id)
+                                    itemForReordering = null
+                                }
+                                .padding(vertical = 12.dp, horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.ArrowDownward, contentDescription = null, tint = Color(0xFF10B981))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Sogeza Chini kwa Nafasi 1 (#${index + 2})", color = Color.White, fontSize = 14.sp)
+                        }
+                    }
+
+                    // Option 4: Move to Bottom
+                    if (index < playlist.items.lastIndex) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    playlistManager.movePlaylistItem(playlist.id, index, playlist.items.lastIndex)
+                                    currentPlaylist = playlistManager.getPlaylistById(playlist.id)
+                                    itemForReordering = null
+                                    Toast.makeText(context, "Imepelekwa mwisho (#${playlist.items.size})", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(vertical = 12.dp, horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.VerticalAlignBottom, contentDescription = null, tint = Color(0xFF10B981))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Peleka Chini Kabisa (Mwisho)", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { itemForReordering = null }) {
+                    Text("Funga", color = F2WCyanPrimary)
+                }
+            }
+        )
     }
 
     // Rename Dialog
@@ -420,12 +577,26 @@ fun PlaylistDetailScreen(
 @Composable
 private fun PlaylistItemRow(
     index: Int,
+    totalCount: Int,
     item: PlaylistItemModel,
     isAudio: Boolean,
     onClick: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onOpenReorderSheet: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    var coverBmp by remember { mutableStateOf<Bitmap?>(null) }
+    var dragAccumulator by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(item.id) {
+        if (isAudio) {
+            coverBmp = AudioCoverHelper.getAudioCoverBitmap(context, item.uriString)
+        }
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -433,7 +604,7 @@ private fun PlaylistItemRow(
             .background(F2WSurfaceElevated)
             .border(1.dp, F2WCardBorder, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .padding(horizontal = 8.dp, vertical = 8.dp)
             .testTag("playlist_item_${item.id}"),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -443,29 +614,38 @@ private fun PlaylistItemRow(
             color = F2WTextTertiary,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(24.dp)
+            modifier = Modifier.width(22.dp)
         )
 
-        // Media Icon
+        // Media Icon or Album Art
         Box(
             modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .size(42.dp)
+                .clip(RoundedCornerShape(8.dp))
                 .background(
                     if (isAudio) F2WVioletAccent.copy(alpha = 0.18f)
                     else F2WCyanPrimary.copy(alpha = 0.18f)
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = if (isAudio) Icons.Filled.Audiotrack else Icons.Filled.Videocam,
-                contentDescription = null,
-                tint = if (isAudio) F2WVioletAccent else F2WCyanPrimary,
-                modifier = Modifier.size(20.dp)
-            )
+            if (coverBmp != null) {
+                Image(
+                    bitmap = coverBmp!!.asImageBitmap(),
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    imageVector = if (isAudio) Icons.Filled.Audiotrack else Icons.Filled.Videocam,
+                    contentDescription = null,
+                    tint = if (isAudio) F2WVioletAccent else F2WCyanPrimary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(10.dp))
 
         // Title and Info
         Column(modifier = Modifier.weight(1f)) {
@@ -497,29 +677,93 @@ private fun PlaylistItemRow(
             }
         }
 
+        // Quick Move Up & Down Controls
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            IconButton(
+                onClick = onMoveUp,
+                enabled = index > 0,
+                modifier = Modifier.size(24.dp).testTag("move_up_${item.id}")
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowUp,
+                    contentDescription = "Move Up",
+                    tint = if (index > 0) Color(0xFF10B981) else Color.White.copy(alpha = 0.2f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            IconButton(
+                onClick = onMoveDown,
+                enabled = index < totalCount - 1,
+                modifier = Modifier.size(24.dp).testTag("move_down_${item.id}")
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = "Move Down",
+                    tint = if (index < totalCount - 1) Color(0xFF10B981) else Color.White.copy(alpha = 0.2f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
+        // Hold / Drag Handle Button
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .clickable { onOpenReorderSheet() }
+                .pointerInput(item.id) {
+                    detectDragGestures(
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            dragAccumulator += dragAmount.y
+                            if (dragAccumulator > 40f) {
+                                dragAccumulator = 0f
+                                onMoveDown()
+                            } else if (dragAccumulator < -40f) {
+                                dragAccumulator = 0f
+                                onMoveUp()
+                            }
+                        }
+                    )
+                }
+                .testTag("drag_handle_${item.id}"),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.DragHandle,
+                contentDescription = "Shikilia kubadili mpangilio",
+                tint = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
         // Quick Play Icon
         IconButton(
             onClick = onClick,
-            modifier = Modifier.size(36.dp)
+            modifier = Modifier.size(32.dp)
         ) {
             Icon(
                 imageVector = Icons.Filled.PlayArrow,
                 contentDescription = "Play",
-                tint = Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.size(22.dp)
+                tint = Color.White.copy(alpha = 0.85f),
+                modifier = Modifier.size(20.dp)
             )
         }
 
         // Remove from Playlist button
         IconButton(
             onClick = onRemove,
-            modifier = Modifier.size(36.dp).testTag("remove_item_${item.id}")
+            modifier = Modifier.size(32.dp).testTag("remove_item_${item.id}")
         ) {
             Icon(
                 imageVector = Icons.Filled.DeleteOutline,
                 contentDescription = "Remove from Playlist",
                 tint = Color(0xFFEF4444).copy(alpha = 0.85f),
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(17.dp)
             )
         }
     }
@@ -598,58 +842,83 @@ private fun AddMediaToPlaylistSheet(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Search filter field
+            // Search Filter
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = {
-                    Text(
-                        text = if (isAudio) "Tafuta wimbo au msanii..." else "Tafuta video...",
-                        color = F2WTextTertiary,
-                        fontSize = 13.sp
-                    )
-                },
+                placeholder = { Text("Tafuta...", color = F2WTextSecondary, fontSize = 13.sp) },
                 leadingIcon = {
-                    Icon(Icons.Filled.Search, contentDescription = null, tint = F2WCyanPrimary, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Search, contentDescription = null, tint = F2WTextSecondary)
                 },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = F2WCyanPrimary,
+                    focusedBorderColor = if (isAudio) F2WVioletAccent else F2WCyanPrimary,
                     unfocusedBorderColor = F2WCardBorder,
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White
                 ),
-                modifier = Modifier.fillMaxWidth().height(50.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Media list
+            // Selection Count Banner
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${selectedItems.size} zimechaguliwa",
+                    color = if (isAudio) F2WVioletAccent else F2WCyanPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+
+                TextButton(
+                    onClick = {
+                        val toAdd = filteredList.filter { !existingIds.contains(it.id) }
+                        if (selectedItems.size == toAdd.size) {
+                            selectedItems.clear()
+                        } else {
+                            selectedItems.clear()
+                            selectedItems.addAll(toAdd)
+                        }
+                    }
+                ) {
+                    Text("Chagua Zote", color = Color.White, fontSize = 12.5.sp)
+                }
+            }
+
+            // Scrollable List
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(340.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .height(300.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                itemsIndexed(filteredList) { _, item ->
-                    val isAlreadyAdded = existingIds.contains(item.id)
-                    val isSelected = selectedItems.any { it.id == item.id }
+                items(filteredList) { item ->
+                    val isAlreadyIn = existingIds.contains(item.id)
+                    val isChecked = selectedItems.any { it.id == item.id }
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .background(
-                                if (isSelected) F2WCyanPrimary.copy(alpha = 0.12f)
-                                else F2WSurfaceElevated
+                                if (isChecked) (if (isAudio) F2WVioletAccent else F2WCyanPrimary).copy(alpha = 0.12f)
+                                else Color(0xFF161A26)
                             )
                             .border(
                                 1.dp,
-                                if (isSelected) F2WCyanPrimary else F2WCardBorder,
+                                if (isChecked) (if (isAudio) F2WVioletAccent else F2WCyanPrimary).copy(alpha = 0.4f)
+                                else F2WCardBorder.copy(alpha = 0.3f),
                                 RoundedCornerShape(10.dp)
                             )
-                            .clickable(enabled = !isAlreadyAdded) {
-                                if (isSelected) {
+                            .clickable(enabled = !isAlreadyIn) {
+                                if (isChecked) {
                                     selectedItems.removeAll { it.id == item.id }
                                 } else {
                                     selectedItems.add(item)
@@ -659,45 +928,35 @@ private fun AddMediaToPlaylistSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
-                            checked = isAlreadyAdded || isSelected,
+                            checked = isChecked || isAlreadyIn,
                             onCheckedChange = { checked ->
-                                if (!isAlreadyAdded) {
+                                if (!isAlreadyIn) {
                                     if (checked) selectedItems.add(item)
                                     else selectedItems.removeAll { it.id == item.id }
                                 }
                             },
-                            enabled = !isAlreadyAdded,
+                            enabled = !isAlreadyIn,
                             colors = CheckboxDefaults.colors(
-                                checkedColor = if (isAlreadyAdded) Color.Gray else F2WCyanPrimary,
-                                uncheckedColor = F2WTextTertiary
+                                checkedColor = if (isAudio) F2WVioletAccent else F2WCyanPrimary,
+                                uncheckedColor = F2WTextSecondary
                             )
                         )
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = item.title,
-                                color = if (isAlreadyAdded) F2WTextTertiary else Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                color = if (isAlreadyIn) F2WTextTertiary else Color.White,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "${item.durationText} • ${item.sizeText} • ${item.subtitle}",
-                                color = F2WTextTertiary,
-                                fontSize = 11.sp,
-                                maxLines = 1
-                            )
-                        }
-
-                        if (isAlreadyAdded) {
-                            Text(
-                                text = "Ipo tayari",
-                                color = Color.Gray,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
+                                text = if (isAlreadyIn) "Ipo tayari kwenye playlist" else "${item.durationText} • ${item.subtitle}",
+                                color = if (isAlreadyIn) F2WVioletAccent else F2WTextSecondary,
+                                fontSize = 11.5.sp
                             )
                         }
                     }
@@ -706,23 +965,28 @@ private fun AddMediaToPlaylistSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Confirm Add Button
+            // Action Buttons
             Button(
                 onClick = { onAddConfirmed(selectedItems.toList()) },
                 enabled = selectedItems.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isAudio) F2WVioletAccent else F2WCyanPrimary,
-                    disabledContainerColor = Color.DarkGray
+                    containerColor = if (isAudio) F2WVioletAccent else F2WCyanPrimary
                 ),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .testTag("confirm_add_media_btn")
+                    .testTag("confirm_add_playlist_media_btn")
             ) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = if (isAudio) Color.White else Color(0xFF070B12)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Ongeza (${selectedItems.size}) Kwenye Playlist",
-                    color = if (selectedItems.isNotEmpty()) Color(0xFF070B12) else Color.LightGray,
+                    text = "Ongeza (${selectedItems.size})",
+                    color = if (isAudio) Color.White else Color(0xFF070B12),
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )

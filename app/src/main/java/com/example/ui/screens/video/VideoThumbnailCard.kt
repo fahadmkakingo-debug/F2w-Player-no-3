@@ -97,10 +97,10 @@ fun VideoThumbnailCard(
                 // Actual video thumbnail loaded via Coil
                 if (video.uriString.isNotBlank()) {
                     AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(Uri.parse(video.uriString))
-                            .crossfade(true)
-                            .build(),
+                        model = com.example.util.media.VideoThumbnailHelper.buildThumbnailRequest(
+                            context = context,
+                            uriString = video.uriString
+                        ),
                         contentDescription = video.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()

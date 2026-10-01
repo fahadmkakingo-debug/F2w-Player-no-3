@@ -104,10 +104,14 @@ fun VideoFolderCard(
             }
 
             // Preview video thumbnail from inside the folder
+            val context = androidx.compose.ui.platform.LocalContext.current
             val thumbnailUri = folder.primaryVideo?.uriString
             if (!thumbnailUri.isNullOrEmpty()) {
                 AsyncImage(
-                    model = thumbnailUri,
+                    model = com.example.util.media.VideoThumbnailHelper.buildThumbnailRequest(
+                        context = context,
+                        uriString = thumbnailUri
+                    ),
                     contentDescription = folder.name,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()

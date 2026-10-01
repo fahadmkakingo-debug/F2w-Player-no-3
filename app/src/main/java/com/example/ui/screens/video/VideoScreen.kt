@@ -99,7 +99,16 @@ fun VideoScreen(
     val dbVideos by scanner.allVideosFlow.collectAsState(initial = videos)
     val scanProgress by scanner.scanProgressState.collectAsState()
 
-    var selectedFilter by remember { mutableStateOf(VideoFilterMode.ALL_VIDEO) }
+    val videoSettings = remember { com.example.data.settings.VideoSettingsPreferences(context) }
+    var selectedFilter by remember {
+        mutableStateOf(
+            try {
+                VideoFilterMode.valueOf(videoSettings.selectedVideoFilter)
+            } catch (_: Exception) {
+                VideoFilterMode.ALL_VIDEO
+            }
+        )
+    }
     var activeVideoForMenu by remember { mutableStateOf<VideoItem?>(null) }
     var activeGroupDetail by remember { mutableStateOf<VideoNameGroup?>(null) }
     var activeFolderDetail by remember { mutableStateOf<VideoFolder?>(null) }
@@ -236,17 +245,26 @@ fun VideoScreen(
                 FilterPillButton(
                     mode = VideoFilterMode.ALL_VIDEO,
                     isSelected = selectedFilter == VideoFilterMode.ALL_VIDEO,
-                    onClick = { selectedFilter = VideoFilterMode.ALL_VIDEO }
+                    onClick = {
+                        selectedFilter = VideoFilterMode.ALL_VIDEO
+                        videoSettings.selectedVideoFilter = VideoFilterMode.ALL_VIDEO.name
+                    }
                 )
                 FilterPillButton(
                     mode = VideoFilterMode.GROUP_BY_NAME,
                     isSelected = selectedFilter == VideoFilterMode.GROUP_BY_NAME,
-                    onClick = { selectedFilter = VideoFilterMode.GROUP_BY_NAME }
+                    onClick = {
+                        selectedFilter = VideoFilterMode.GROUP_BY_NAME
+                        videoSettings.selectedVideoFilter = VideoFilterMode.GROUP_BY_NAME.name
+                    }
                 )
                 FilterPillButton(
                     mode = VideoFilterMode.GROUP_BY_FOLDER,
                     isSelected = selectedFilter == VideoFilterMode.GROUP_BY_FOLDER,
-                    onClick = { selectedFilter = VideoFilterMode.GROUP_BY_FOLDER }
+                    onClick = {
+                        selectedFilter = VideoFilterMode.GROUP_BY_FOLDER
+                        videoSettings.selectedVideoFilter = VideoFilterMode.GROUP_BY_FOLDER.name
+                    }
                 )
             }
 
@@ -261,12 +279,18 @@ fun VideoScreen(
                 FilterPillButton(
                     mode = VideoFilterMode.RECENTLY_ADDED,
                     isSelected = selectedFilter == VideoFilterMode.RECENTLY_ADDED,
-                    onClick = { selectedFilter = VideoFilterMode.RECENTLY_ADDED }
+                    onClick = {
+                        selectedFilter = VideoFilterMode.RECENTLY_ADDED
+                        videoSettings.selectedVideoFilter = VideoFilterMode.RECENTLY_ADDED.name
+                    }
                 )
                 FilterPillButton(
                     mode = VideoFilterMode.RECENTLY_PLAYED,
                     isSelected = selectedFilter == VideoFilterMode.RECENTLY_PLAYED,
-                    onClick = { selectedFilter = VideoFilterMode.RECENTLY_PLAYED }
+                    onClick = {
+                        selectedFilter = VideoFilterMode.RECENTLY_PLAYED
+                        videoSettings.selectedVideoFilter = VideoFilterMode.RECENTLY_PLAYED.name
+                    }
                 )
             }
 

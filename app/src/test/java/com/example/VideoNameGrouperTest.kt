@@ -56,6 +56,48 @@ class VideoNameGrouperTest {
         assertEquals(2, spidermanGroup?.videos?.size)
     }
 
+    @Test
+    fun testAdultingEpisodesGrouping() {
+        val videos = listOf(
+            VideoItem(id = "1", title = "Adulting S01 Ep01"),
+            VideoItem(id = "2", title = "Adulting S01 Ep03"),
+            VideoItem(id = "3", title = "Adulting S01 Ep05"),
+            VideoItem(id = "4", title = "Adulting S01 Ep06"),
+            VideoItem(id = "5", title = "Adulting S01 Ep10")
+        )
+
+        val groups = VideoNameGrouper.groupVideosByName(videos)
+        assertEquals("All Adulting episodes should be clustered into 1 group", 1, groups.size)
+        val adultingGroup = groups.first()
+        assertTrue("Group title should contain Adulting", adultingGroup.title.contains("Adulting"))
+        assertEquals("Adulting group should contain all 5 episodes", 5, adultingGroup.videos.size)
+    }
+
+    @Test
+    fun testSwahiliConsecutiveAlphabetPrefixGrouping() {
+        val videos = listOf(
+            VideoItem(id = "1", title = "babaya wake"),
+            VideoItem(id = "2", title = "baba huyu"),
+            VideoItem(id = "3", title = "dunia 01"),
+            VideoItem(id = "4", title = "dunia no2"),
+            VideoItem(id = "5", title = "Single Unrelated Movie")
+        )
+
+        val groups = VideoNameGrouper.groupVideosByName(videos)
+
+        val babaGroup = groups.find { it.title.startsWith("Baba", ignoreCase = true) }
+        assertTrue("Baba group should be found", babaGroup != null)
+        assertEquals(2, babaGroup?.videos?.size)
+
+        val duniaGroup = groups.find { it.title.startsWith("Dunia", ignoreCase = true) }
+        assertTrue("Dunia group should be found", duniaGroup != null)
+        assertEquals(2, duniaGroup?.videos?.size)
+
+        val singleGroup = groups.find { it.title.contains("Single") }
+        assertTrue("Single video should remain 1", singleGroup != null)
+        assertEquals(1, singleGroup?.videos?.size)
+    }
+
     @Test(timeout = 2000)
     fun testLargeVideoLibraryGroupingPerformanceNoAnr() {
         val largeList = mutableListOf<VideoItem>()

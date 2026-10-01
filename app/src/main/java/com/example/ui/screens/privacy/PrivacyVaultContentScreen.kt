@@ -394,57 +394,6 @@ fun PrivacyVaultContentScreen(
                             }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    // Security Status Info
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFF161A24))
-                            .border(1.dp, F2WCardBorder, RoundedCornerShape(14.dp))
-                            .padding(16.dp)
-                    ) {
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Filled.Security,
-                                    contentDescription = null,
-                                    tint = F2WCyanPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Security Status",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Protection Level:", color = F2WTextSecondary, fontSize = 12.5.sp)
-                                Text("SHA-256 Encrypted", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Fingerprint Unlock:", color = F2WTextSecondary, fontSize = 12.5.sp)
-                                Text(
-                                    if (isFingerprintEnabled) "Enabled" else "Disabled",
-                                    color = if (isFingerprintEnabled) F2WCyanPrimary else F2WTextTertiary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.5.sp
-                                )
-                            }
-                        }
-                    }
                 }
             } else {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -688,6 +637,57 @@ fun PrivacyVaultContentScreen(
                         Column {
                             Text("Lock Vault Now", color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             Text("Require authentication to re-enter", color = F2WTextSecondary, fontSize = 11.5.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Embedded Security Status Info inside Settings
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF131722))
+                            .border(1.dp, F2WCardBorder.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                            .padding(12.dp)
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Security,
+                                    contentDescription = null,
+                                    tint = F2WCyanPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Security Status",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Protection Level:", color = F2WTextSecondary, fontSize = 12.sp)
+                                Text("SHA-256 Encrypted", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Fingerprint Unlock:", color = F2WTextSecondary, fontSize = 12.sp)
+                                Text(
+                                    if (isFingerprintEnabled) "Enabled" else "Disabled",
+                                    color = if (isFingerprintEnabled) F2WCyanPrimary else F2WTextTertiary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
                     }
                 }

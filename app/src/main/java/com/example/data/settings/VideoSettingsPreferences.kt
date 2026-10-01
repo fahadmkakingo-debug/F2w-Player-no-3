@@ -24,7 +24,12 @@ class VideoSettingsPreferences(context: Context) {
         private const val KEY_REMEMBER_RATIO = "remember_ratio"
         private const val KEY_REMEMBER_SPEED = "remember_speed"
         private const val KEY_REMEMBER_BRIGHTNESS = "remember_brightness"
+        private const val KEY_SELECTED_VIDEO_FILTER = "selected_video_filter"
     }
+
+    var selectedVideoFilter: String
+        get() = prefs.getString(KEY_SELECTED_VIDEO_FILTER, "ALL_VIDEO") ?: "ALL_VIDEO"
+        set(value) = prefs.edit().putString(KEY_SELECTED_VIDEO_FILTER, value).apply()
 
     var showStatusBarDuringPlayback: Boolean
         get() = prefs.getBoolean(KEY_SHOW_STATUS_BAR, false)

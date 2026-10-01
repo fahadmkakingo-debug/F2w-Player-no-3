@@ -609,8 +609,17 @@ private fun DeviceMediaFileListCard(
                         )
                     }
                 } else {
+                    val context = LocalContext.current
+                    val modelObj = if (type == PrivacyAddType.VIDEO) {
+                        com.example.util.media.VideoThumbnailHelper.buildThumbnailRequest(
+                            context = context,
+                            uriString = file.uri.toString()
+                        )
+                    } else {
+                        if (file.path.isNotBlank() && File(file.path).exists()) File(file.path) else file.uri
+                    }
                     AsyncImage(
-                        model = if (file.path.isNotBlank() && File(file.path).exists()) File(file.path) else file.uri,
+                        model = modelObj,
                         contentDescription = file.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -747,8 +756,17 @@ private fun DeviceMediaFileGridCard(
                         )
                     }
                 } else {
+                    val context = LocalContext.current
+                    val modelObj = if (type == PrivacyAddType.VIDEO) {
+                        com.example.util.media.VideoThumbnailHelper.buildThumbnailRequest(
+                            context = context,
+                            uriString = file.uri.toString()
+                        )
+                    } else {
+                        if (file.path.isNotBlank() && File(file.path).exists()) File(file.path) else file.uri
+                    }
                     AsyncImage(
-                        model = if (file.path.isNotBlank() && File(file.path).exists()) File(file.path) else file.uri,
+                        model = modelObj,
                         contentDescription = file.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()

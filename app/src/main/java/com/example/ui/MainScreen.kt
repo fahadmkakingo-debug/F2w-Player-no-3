@@ -132,7 +132,19 @@ fun MainScreen(
     var currentVideoPlaylist by remember { mutableStateOf<List<VideoItem>>(emptyList()) }
     var isFloatingMiniPlayer by remember { mutableStateOf(false) }
 
+    val audioManager = remember { com.example.data.audio.AudioPlaybackManager.getInstance(context) }
+    val isFullScreenAudioOpen by audioManager.isFullScreenOpen.collectAsState()
+
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Fullscreen Audio Player
+    if (isFullScreenAudioOpen) {
+        com.example.ui.screens.audio.AudioPlayerFullScreen(
+            audioManager = audioManager,
+            onBack = { audioManager.closeFullScreen() }
+        )
+        return
+    }
 
     // Fullscreen XPlayer when a video is clicked and not in mini-player mode
     if (activePlayingVideo != null && (!isFloatingMiniPlayer || isInPipMode)) {
@@ -185,31 +197,43 @@ fun MainScreen(
         containerColor = F2WBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            F2WTopBar(
-                subtitle = subtitle,
-                onSearchClick = { showSearchDialog = true },
-                isListView = isListView,
-                onToggleViewMode = { isListView = !isListView },
-                onThemeClick = { showThemePicker = true },
-                onRefreshClick = {
-                    scanner.startScan(forceFullRescan = true)
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("Refreshing media storage...")
-                    }
-                },
-                onEqualiserClick = {
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("Equaliser: Audio enhancements ready")
-                    }
-                },
-                onSettingsClick = { showSettingsPage = true }
-            )
+            if (selectedTab != NavTab.AUDIO) {
+                F2WTopBar(
+                    subtitle = subtitle,
+                    onSearchClick = { showSearchDialog = true },
+                    isListView = isListView,
+                    onToggleViewMode = { isListView = !isListView },
+                    onThemeClick = { showThemePicker = true },
+                    onRefreshClick = {
+                        scanner.startScan(forceFullRescan = true)
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Refreshing media storage...")
+                        }
+                    },
+                    onEqualiserClick = {
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Equaliser: Audio enhancements ready")
+                        }
+                    },
+                    onSettingsClick = { showSettingsPage = true }
+                )
+            }
         },
         bottomBar = {
-            FloatingNavBar(
-                selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it }
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                com.example.ui.screens.audio.AudioMiniPlayerBar(
+                    audioManager = audioManager,
+                    onExpand = { audioManager.openFullScreen() },
+                    onOpenQueue = { audioManager.openFullScreen() }
+                )
+                FloatingNavBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it }
+                )
+            }
         }
     ) { innerPadding ->
         Box(

@@ -28,6 +28,10 @@ data class PlaylistItemModel(
     val sizeText: String = "",
     val subtitle: String = "",
     val mediaType: PlaylistMediaType = PlaylistMediaType.VIDEO,
+    val album: String = "Unknown Album",
+    val artist: String = "Unknown Artist",
+    val folder: String = "Music",
+    val albumId: Long = 0L,
     val dateAdded: Long = System.currentTimeMillis()
 )
 
@@ -238,6 +242,36 @@ class PlaylistManager private constructor(private val appContext: Context) {
     }
 
     @Synchronized
+    fun updatePlaylistItemsOrder(playlistId: String, newItemsOrder: List<PlaylistItemModel>): Boolean {
+        val current = getAllPlaylists().toMutableList()
+        val index = current.indexOfFirst { it.id == playlistId }
+        if (index == -1) return false
+
+        current[index] = current[index].copy(items = newItemsOrder)
+        saveAllPlaylists(current)
+        _playlistUpdates.tryEmit(Unit)
+        return true
+    }
+
+    @Synchronized
+    fun movePlaylistItem(playlistId: String, fromIndex: Int, toIndex: Int): Boolean {
+        val current = getAllPlaylists().toMutableList()
+        val index = current.indexOfFirst { it.id == playlistId }
+        if (index == -1) return false
+
+        val existingPlaylist = current[index]
+        val items = existingPlaylist.items.toMutableList()
+        if (fromIndex !in items.indices || toIndex !in items.indices) return false
+
+        val moved = items.removeAt(fromIndex)
+        items.add(toIndex, moved)
+        current[index] = existingPlaylist.copy(items = items)
+        saveAllPlaylists(current)
+        _playlistUpdates.tryEmit(Unit)
+        return true
+    }
+
+    @Synchronized
     fun saveConvertedMp3(
         title: String,
         durationText: String,
@@ -398,7 +432,9 @@ class PlaylistManager private constructor(private val appContext: Context) {
                 MediaStore.Audio.Media.DATA,
                 MediaStore.Audio.Media.SIZE,
                 MediaStore.Audio.Media.DURATION,
-                MediaStore.Audio.Media.ARTIST
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.ALBUM_ID
             )
             appContext.contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -414,6 +450,8 @@ class PlaylistManager private constructor(private val appContext: Context) {
                 val sizeCol = cursor.getColumnIndex(MediaStore.Audio.Media.SIZE)
                 val durCol = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION)
                 val artistCol = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST)
+                val albumCol = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM)
+                val albumIdCol = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID)
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idCol)
@@ -423,9 +461,23 @@ class PlaylistManager private constructor(private val appContext: Context) {
                     val path = if (dataCol != -1) cursor.getString(dataCol) ?: "" else ""
                     val size = if (sizeCol != -1) cursor.getLong(sizeCol) else 0L
                     val duration = if (durCol != -1) cursor.getLong(durCol) else 0L
-                    val artist = if (artistCol != -1) cursor.getString(artistCol) ?: "Unknown Artist" else "Music"
+                    val artist = if (artistCol != -1 && !cursor.getString(artistCol).isNullOrBlank() && cursor.getString(artistCol) != "<unknown>") {
+                        cursor.getString(artistCol)
+                    } else "Unknown Artist"
+                    val album = if (albumCol != -1 && !cursor.getString(albumCol).isNullOrBlank() && cursor.getString(albumCol) != "<unknown>") {
+                        cursor.getString(albumCol)
+                    } else "Unknown Album"
+                    val albumId = if (albumIdCol != -1) cursor.getLong(albumIdCol) else 0L
 
                     if (path.isNotBlank() && vaultPaths.contains(path.lowercase())) continue
+
+                    val folderName = try {
+                        if (path.isNotBlank()) {
+                            File(path).parentFile?.name ?: "Music"
+                        } else "Music"
+                    } catch (_: Exception) {
+                        "Music"
+                    }
 
                     val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
                     val durText = formatDuration(duration)
@@ -440,7 +492,11 @@ class PlaylistManager private constructor(private val appContext: Context) {
                             durationMs = duration,
                             sizeText = szText,
                             subtitle = artist,
-                            mediaType = PlaylistMediaType.AUDIO
+                            mediaType = PlaylistMediaType.AUDIO,
+                            album = album,
+                            artist = artist,
+                            folder = folderName,
+                            albumId = albumId
                         )
                     )
                 }

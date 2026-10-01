@@ -97,6 +97,7 @@ fun VideoListCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 1. Left: Video Thumbnail with Center Play Button
+            val context = androidx.compose.ui.platform.LocalContext.current
             Box(
                 modifier = Modifier
                     .size(width = 104.dp, height = 68.dp)
@@ -105,7 +106,10 @@ fun VideoListCard(
             ) {
                 if (video.uriString.isNotBlank()) {
                     AsyncImage(
-                        model = video.uriString,
+                        model = com.example.util.media.VideoThumbnailHelper.buildThumbnailRequest(
+                            context = context,
+                            uriString = video.uriString
+                        ),
                         contentDescription = video.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()

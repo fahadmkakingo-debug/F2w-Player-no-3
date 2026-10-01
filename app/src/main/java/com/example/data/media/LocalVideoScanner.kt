@@ -363,7 +363,9 @@ class LocalVideoScanner(private val context: Context) {
                     name = folderName,
                     videoCount = items.size,
                     path = folderName,
-                    videos = items
+                    videos = items.sortedWith { a, b ->
+                        com.example.util.media.NaturalOrderComparator.compare(a.title, b.title)
+                    }
                 )
             }
             .sortedByDescending { it.videoCount }

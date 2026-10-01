@@ -454,7 +454,7 @@ class PrivacyVaultManager(context: Context) {
                     return@forEachIndexed
                 }
 
-                // Delete original file to ensure it is MOVED, not duplicated
+                // Delete original file if permitted by OS to ensure it is MOVED, not duplicated
                 var deletedOriginal = false
 
                 // Method 1: Delete via File path if accessible
@@ -486,23 +486,17 @@ class PrivacyVaultManager(context: Context) {
                     } catch (_: Exception) {}
                 }
 
-                if (!deletedOriginal) {
-                    // Safety requirement: Keep original untouched, do not duplicate
-                    targetFile.delete()
-                    failedCount++
-                    errors.add("Could not delete original ${file.title}. File left untouched.")
-                    return@forEachIndexed
-                }
-
-                // Scan original path so Android MediaStore updates immediately
-                if (file.path.isNotBlank()) {
-                    MediaScannerConnection.scanFile(appContext, arrayOf(file.path), null, null)
+                // Scan original path so Android MediaStore updates if file was deleted
+                if (file.path.isNotBlank() && deletedOriginal) {
+                    try {
+                        MediaScannerConnection.scanFile(appContext, arrayOf(file.path), null, null)
+                    } catch (_: Exception) {}
                 }
 
                 val vaultItem = PrivacyVaultItem(
                     id = "vault_${System.currentTimeMillis()}_${file.id}",
                     fileName = targetFile.name,
-                    originalPath = file.path,
+                    originalPath = file.path.ifBlank { file.uri.toString() },
                     vaultPath = targetFile.absolutePath,
                     mediaType = mediaType.uppercase(),
                     sizeBytes = targetFile.length(),
@@ -580,7 +574,7 @@ class PrivacyVaultManager(context: Context) {
                     return@forEachIndexed
                 }
 
-                // Delete original SAF document
+                // Delete original SAF document if permitted
                 var deletedOriginal = false
                 try {
                     if (DocumentsContract.deleteDocument(appContext.contentResolver, uri)) {
@@ -607,13 +601,6 @@ class PrivacyVaultManager(context: Context) {
                             }
                         }
                     } catch (_: Exception) {}
-                }
-
-                if (!deletedOriginal) {
-                    targetFile.delete()
-                    failedCount++
-                    errors.add("Could not delete original $displayName. File left untouched.")
-                    return@forEachIndexed
                 }
 
                 val vaultItem = PrivacyVaultItem(

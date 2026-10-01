@@ -75,6 +75,7 @@ fun VideoNameGroupListCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 1. Left Thumbnail Poster with Stacked Collection Badge
+            val context = androidx.compose.ui.platform.LocalContext.current
             Box(
                 modifier = Modifier
                     .size(width = 104.dp, height = 68.dp)
@@ -84,7 +85,10 @@ fun VideoNameGroupListCard(
                 val thumbnailUri = group.primaryVideo?.uriString
                 if (!thumbnailUri.isNullOrEmpty()) {
                     AsyncImage(
-                        model = thumbnailUri,
+                        model = com.example.util.media.VideoThumbnailHelper.buildThumbnailRequest(
+                            context = context,
+                            uriString = thumbnailUri
+                        ),
                         contentDescription = group.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()

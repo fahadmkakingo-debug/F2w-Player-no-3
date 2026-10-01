@@ -681,8 +681,22 @@ fun PlaylistQueueBottomSheet(
     videos: List<VideoItem>,
     currentVideoId: String,
     onVideoSelected: (VideoItem) -> Unit,
+    onQueueReordered: (List<VideoItem>) -> Unit = {},
     onDismissRequest: () -> Unit
 ) {
+    var queueList by remember(videos) { mutableStateOf(videos.toMutableList()) }
+    var itemForReorder by remember { mutableStateOf<Pair<Int, VideoItem>?>(null) }
+
+    fun moveItem(fromIndex: Int, toIndex: Int) {
+        if (fromIndex in queueList.indices && toIndex in queueList.indices && fromIndex != toIndex) {
+            val updated = queueList.toMutableList()
+            val item = updated.removeAt(fromIndex)
+            updated.add(toIndex, item)
+            queueList = updated
+            onQueueReordered(updated)
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         containerColor = Color(0xFF1E1F22),
@@ -691,66 +705,249 @@ fun PlaylistQueueBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 8.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            Text(
-                text = "Orodha ya Video (Playlist Queue • ${videos.size})",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Orodha ya Video (Playlist Queue • ${queueList.size})",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
+                    )
+                    Text(
+                        text = "Shikilia (hold) kupanga video inayofuata kuchezwa",
+                        color = F2WCyanPrimary,
+                        fontSize = 11.5.sp
+                    )
+                }
+            }
 
+            Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = F2WCardBorder.copy(alpha = 0.4f))
 
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(340.dp)
+                    .height(380.dp)
                     .padding(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                items(videos) { video ->
+                itemsIndexed(queueList, key = { _, v -> v.id }) { index, video ->
                     val isPlaying = video.id == currentVideoId
+                    var dragAccumulator by remember { mutableStateOf(0f) }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (isPlaying) F2WCyanPrimary.copy(alpha = 0.18f) else Color.Transparent)
+                            .background(
+                                if (isPlaying) F2WCyanPrimary.copy(alpha = 0.18f)
+                                else Color(0xFF262930)
+                            )
+                            .border(
+                                1.dp,
+                                if (isPlaying) F2WCyanPrimary.copy(alpha = 0.7f)
+                                else F2WCardBorder.copy(alpha = 0.25f),
+                                RoundedCornerShape(10.dp)
+                            )
                             .clickable {
                                 onVideoSelected(video)
                                 onDismissRequest()
                             }
-                            .padding(10.dp),
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (isPlaying) {
                             Icon(
                                 imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = null,
+                                contentDescription = "Playing",
                                 tint = F2WCyanPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                        } else {
+                            Text(
+                                text = "${index + 1}",
+                                color = F2WTextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.width(22.dp)
+                            )
                         }
+
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = video.title,
                                 color = if (isPlaying) F2WCyanPrimary else Color.White,
-                                fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 14.sp,
+                                fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 13.5.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "${video.resolution} • ${video.durationText} • ${video.sizeText}",
                                 color = F2WTextSecondary,
-                                fontSize = 11.5.sp
+                                fontSize = 11.sp
                             )
+                        }
+
+                        // Move Up & Down Controls
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { moveItem(index, index - 1) },
+                                enabled = index > 0,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.filled.KeyboardArrowUp,
+                                    contentDescription = "Sogeza Juu",
+                                    tint = if (index > 0) Color.White else Color.White.copy(alpha = 0.2f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { moveItem(index, index + 1) },
+                                enabled = index < queueList.lastIndex,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.filled.KeyboardArrowDown,
+                                    contentDescription = "Sogeza Chini",
+                                    tint = if (index < queueList.lastIndex) Color.White else Color.White.copy(alpha = 0.2f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            // Hold / Drag Handle
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .clickable { itemForReorder = Pair(index, video) }
+                                    .pointerInput(video.id) {
+                                        androidx.compose.foundation.gestures.detectDragGestures(
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                dragAccumulator += dragAmount.y
+                                                if (dragAccumulator > 35f) {
+                                                    dragAccumulator = 0f
+                                                    moveItem(index, index + 1)
+                                                } else if (dragAccumulator < -35f) {
+                                                    dragAccumulator = 0f
+                                                    moveItem(index, index - 1)
+                                                }
+                                            }
+                                        )
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.filled.DragHandle,
+                                    contentDescription = "Shikilia kubadili mpangilio",
+                                    tint = if (isPlaying) F2WCyanPrimary else Color.White.copy(alpha = 0.65f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Quick Reorder Action Dialog
+    itemForReorder?.let { (idx, vid) ->
+        val currentPlayIndex = queueList.indexOfFirst { it.id == currentVideoId }
+        AlertDialog(
+            onDismissRequest = { itemForReorder = null },
+            containerColor = Color(0xFF1E1F22),
+            title = {
+                Text(
+                    text = "Mpangilio wa Video",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "\"${vid.title}\" (Ipo nafasi #${idx + 1})",
+                        color = F2WTextSecondary,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    // Option 1: Play Next (right after current playing video)
+                    if (currentPlayIndex != -1 && idx != currentPlayIndex + 1 && currentPlayIndex < queueList.lastIndex) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    val targetIdx = if (idx > currentPlayIndex) currentPlayIndex + 1 else currentPlayIndex
+                                    moveItem(idx, targetIdx)
+                                    itemForReorder = null
+                                }
+                                .padding(vertical = 12.dp, horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = F2WCyanPrimary)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Icheze Inayofuata (Play Next)", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        }
+                    }
+
+                    // Option 2: Move to Top
+                    if (idx > 0) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    moveItem(idx, 0)
+                                    itemForReorder = null
+                                }
+                                .padding(vertical = 12.dp, horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(androidx.compose.material.icons.filled.ArrowUpward, contentDescription = null, tint = F2WCyanPrimary)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Peleka Juu Kabisa (Namba 1)", color = Color.White, fontSize = 14.sp)
+                        }
+                    }
+
+                    // Option 3: Move to Bottom
+                    if (idx < queueList.lastIndex) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    moveItem(idx, queueList.lastIndex)
+                                    itemForReorder = null
+                                }
+                                .padding(vertical = 12.dp, horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(androidx.compose.material.icons.filled.ArrowDownward, contentDescription = null, tint = F2WCyanPrimary)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Peleka Mwisho (Namba ${queueList.size})", color = Color.White, fontSize = 14.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { itemForReorder = null }) {
+                    Text("Funga", color = F2WCyanPrimary)
+                }
+            }
+        )
     }
 }
