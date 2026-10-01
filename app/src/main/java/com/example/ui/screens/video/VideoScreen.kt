@@ -133,10 +133,13 @@ fun VideoScreen(
         }
     )
 
-    // Trigger initial background scan if permission is granted
+    // Trigger initial background scan if permission is granted - only if database is empty
     LaunchedEffect(mediaPermissionState.hasAccess) {
         if (mediaPermissionState.hasAccess) {
-            scanner.startScan(forceFullRescan = false)
+            val currentVideos = scanner.scanDeviceVideos() // Use suspend function to get snapshot
+            if (currentVideos.isEmpty()) {
+                scanner.startScan(forceFullRescan = false)
+            }
         }
     }
 
@@ -303,8 +306,8 @@ fun VideoScreen(
             )
         }
 
-        // Linear Progress bar during scanning if total count is known
-        if (scanProgress.isScanning && scanProgress.totalCount > 0) {
+        // Linear Progress bar during scanning if total count is known - Only show if it is actually scanning to avoid layout jitter
+        if (scanProgress.isScanning) {
             LinearProgressIndicator(
                 progress = { scanProgress.progressFraction },
                 modifier = Modifier
