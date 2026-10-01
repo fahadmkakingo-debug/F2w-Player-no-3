@@ -14,15 +14,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
@@ -59,6 +64,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -804,7 +811,7 @@ fun PlaylistQueueBottomSheet(
                                 modifier = Modifier.size(28.dp)
                             ) {
                                 Icon(
-                                    imageVector = androidx.compose.material.icons.filled.KeyboardArrowUp,
+                                    imageVector = Icons.Filled.KeyboardArrowUp,
                                     contentDescription = "Sogeza Juu",
                                     tint = if (index > 0) Color.White else Color.White.copy(alpha = 0.2f),
                                     modifier = Modifier.size(20.dp)
@@ -817,7 +824,7 @@ fun PlaylistQueueBottomSheet(
                                 modifier = Modifier.size(28.dp)
                             ) {
                                 Icon(
-                                    imageVector = androidx.compose.material.icons.filled.KeyboardArrowDown,
+                                    imageVector = Icons.Filled.KeyboardArrowDown,
                                     contentDescription = "Sogeza Chini",
                                     tint = if (index < queueList.lastIndex) Color.White else Color.White.copy(alpha = 0.2f),
                                     modifier = Modifier.size(20.dp)
@@ -831,7 +838,7 @@ fun PlaylistQueueBottomSheet(
                                     .clip(CircleShape)
                                     .clickable { itemForReorder = Pair(index, video) }
                                     .pointerInput(video.id) {
-                                        androidx.compose.foundation.gestures.detectDragGestures(
+                                        detectDragGestures(
                                             onDrag = { change, dragAmount ->
                                                 change.consume()
                                                 dragAccumulator += dragAmount.y
@@ -848,7 +855,7 @@ fun PlaylistQueueBottomSheet(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = androidx.compose.material.icons.filled.DragHandle,
+                                    imageVector = Icons.Filled.DragHandle,
                                     contentDescription = "Shikilia kubadili mpangilio",
                                     tint = if (isPlaying) F2WCyanPrimary else Color.White.copy(alpha = 0.65f),
                                     modifier = Modifier.size(20.dp)
@@ -917,7 +924,7 @@ fun PlaylistQueueBottomSheet(
                                 .padding(vertical = 12.dp, horizontal = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(androidx.compose.material.icons.filled.ArrowUpward, contentDescription = null, tint = F2WCyanPrimary)
+                            Icon(Icons.Filled.ArrowUpward, contentDescription = null, tint = F2WCyanPrimary)
                             Spacer(modifier = Modifier.width(10.dp))
                             Text("Peleka Juu Kabisa (Namba 1)", color = Color.White, fontSize = 14.sp)
                         }
@@ -936,7 +943,7 @@ fun PlaylistQueueBottomSheet(
                                 .padding(vertical = 12.dp, horizontal = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(androidx.compose.material.icons.filled.ArrowDownward, contentDescription = null, tint = F2WCyanPrimary)
+                            Icon(Icons.Filled.ArrowDownward, contentDescription = null, tint = F2WCyanPrimary)
                             Spacer(modifier = Modifier.width(10.dp))
                             Text("Peleka Mwisho (Namba ${queueList.size})", color = Color.White, fontSize = 14.sp)
                         }
