@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -99,17 +100,14 @@ fun MainScreen(
     val context = LocalContext.current
 
     val coroutineScope = rememberCoroutineScope()
-    val scanner = remember { LocalVideoScanner(context) }
-    var allScannedVideos by remember { mutableStateOf<List<VideoItem>>(emptyList()) }
+    val scanner = remember { LocalVideoScanner.getInstance(context) }
+    val allScannedVideos by scanner.allVideosFlow.collectAsState(initial = emptyList())
 
     // Request permissions on first launch only
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val scanned = scanner.scanDeviceVideos()
-            allScannedVideos = scanned
-        }
+        scanner.startScan(forceFullRescan = false)
     }
 
     LaunchedEffect(Unit) {
@@ -121,10 +119,7 @@ fun MainScreen(
             val required = MediaPermissionManager.getRequiredPermissions(MediaPermissionType.ALL_MEDIA)
             permissionLauncher.launch(required)
         } else if (hasAccess) {
-            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                val scanned = scanner.scanDeviceVideos()
-                allScannedVideos = scanned
-            }
+            scanner.startScan(forceFullRescan = false)
         }
     }
 
@@ -197,6 +192,7 @@ fun MainScreen(
                 onToggleViewMode = { isListView = !isListView },
                 onThemeClick = { showThemePicker = true },
                 onRefreshClick = {
+                    scanner.startScan(forceFullRescan = true)
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar("Refreshing media storage...")
                     }

@@ -55,4 +55,33 @@ class VideoNameGrouperTest {
         assertTrue("Spider-Man group should exist", spidermanGroup != null)
         assertEquals(2, spidermanGroup?.videos?.size)
     }
+
+    @Test(timeout = 2000)
+    fun testLargeVideoLibraryGroupingPerformanceNoAnr() {
+        val largeList = mutableListOf<VideoItem>()
+        for (i in 1..3000) {
+            val franchise = when (i % 5) {
+                0 -> "Avatar Episode $i"
+                1 -> "Dune Part $i"
+                2 -> "Spider-Man: Series $i"
+                3 -> "Fast and Furious $i"
+                else -> "Random Movie File $i"
+            }
+            largeList.add(
+                VideoItem(
+                    id = "vid_$i",
+                    title = franchise,
+                    durationText = "01:45:00",
+                    folderName = "Movies"
+                )
+            )
+        }
+
+        val startTime = System.currentTimeMillis()
+        val groups = VideoNameGrouper.groupVideosByName(largeList)
+        val elapsed = System.currentTimeMillis() - startTime
+
+        assertTrue("Grouping 3000 videos must complete in under 500ms, elapsed: ${elapsed}ms", elapsed < 500)
+        assertTrue("Groups must not be empty", groups.isNotEmpty())
+    }
 }

@@ -1,14 +1,9 @@
 package com.example.ui.screens.video
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.database.ContentObserver
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -34,6 +29,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.VideoLibrary
@@ -41,8 +37,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -63,11 +61,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
-import com.example.data.media.DemoVideoData
 import com.example.data.media.LocalVideoScanner
 import com.example.data.media.RecentlyPlayedManager
+import com.example.data.security.PrivacyVaultManager
 import com.example.ui.components.F2WEmptyState
+import com.example.ui.components.permission.MediaPermissionRationaleDialog
 import com.example.ui.components.permission.rememberMediaPermissionState
 import com.example.ui.theme.F2WCardBorder
 import com.example.ui.theme.F2WCyanPrimary
@@ -77,9 +75,7 @@ import com.example.ui.theme.F2WTextPrimary
 import com.example.ui.theme.F2WTextSecondary
 import com.example.ui.theme.F2WTextTertiary
 import com.example.util.permission.MediaPermissionType
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,20 +91,21 @@ fun VideoScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val scanner = remember { LocalVideoScanner(context) }
+    val scanner = remember { LocalVideoScanner.getInstance(context) }
     val recentlyPlayedManager = remember { RecentlyPlayedManager.getInstance(context) }
     val recentlyPlayedIds by recentlyPlayedManager.recentlyPlayedIds.collectAsState()
 
+    // Observe persistent Room cached videos flow
+    val dbVideos by scanner.allVideosFlow.collectAsState(initial = videos)
+    val scanProgress by scanner.scanProgressState.collectAsState()
+
     var selectedFilter by remember { mutableStateOf(VideoFilterMode.ALL_VIDEO) }
-    var scannedVideos by remember { mutableStateOf(videos) }
-    var scannedFolders by remember { mutableStateOf(folders) }
-    var isScanning by remember { mutableStateOf(false) }
     var activeVideoForMenu by remember { mutableStateOf<VideoItem?>(null) }
     var activeGroupDetail by remember { mutableStateOf<VideoNameGroup?>(null) }
     var activeFolderDetail by remember { mutableStateOf<VideoFolder?>(null) }
     val favoriteVideoIds = remember { mutableStateListOf<String>() }
 
-    val vaultManager = remember { com.example.data.security.PrivacyVaultManager.getInstance(context) }
+    val vaultManager = remember { PrivacyVaultManager.getInstance(context) }
     var movedVaultPaths by remember {
         mutableStateOf(vaultManager.getVaultItems().map { it.originalPath.lowercase() }.toSet())
     }
@@ -119,14 +116,58 @@ fun VideoScreen(
         }
     }
 
-    val availableVideos = remember(scannedVideos, movedVaultPaths) {
-        if (movedVaultPaths.isEmpty()) scannedVideos
-        else scannedVideos.filter { v ->
+    // Media permissions state handler
+    val mediaPermissionState = rememberMediaPermissionState(
+        type = MediaPermissionType.VIDEO,
+        onPermissionGranted = {
+            scanner.startScan(forceFullRescan = false)
+        }
+    )
+
+    // Trigger initial background scan if permission is granted
+    LaunchedEffect(mediaPermissionState.hasAccess) {
+        if (mediaPermissionState.hasAccess) {
+            scanner.startScan(forceFullRescan = false)
+        }
+    }
+
+    // ContentObserver to trigger incremental scan when new video is added to device
+    DisposableEffect(mediaPermissionState.hasAccess) {
+        if (!mediaPermissionState.hasAccess) return@DisposableEffect onDispose {}
+
+        val contentObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                super.onChange(selfChange)
+                if (!scanProgress.isScanning) {
+                    scanner.startScan(forceFullRescan = false)
+                }
+            }
+        }
+
+        try {
+            context.contentResolver.registerContentObserver(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                false,
+                contentObserver
+            )
+        } catch (_: Exception) {}
+
+        onDispose {
+            try {
+                context.contentResolver.unregisterContentObserver(contentObserver)
+            } catch (_: Exception) {}
+        }
+    }
+
+    val availableVideos = remember(dbVideos, movedVaultPaths) {
+        if (movedVaultPaths.isEmpty()) dbVideos
+        else dbVideos.filter { v ->
             !movedVaultPaths.contains(v.uriString.lowercase()) &&
             !movedVaultPaths.any { path -> path.isNotBlank() && path.endsWith(v.title.lowercase()) }
         }
     }
 
+    // Fast O(N) grouping and folder extraction
     val nameGroups = remember(availableVideos) {
         VideoNameGrouper.groupVideosByName(availableVideos)
     }
@@ -153,63 +194,6 @@ fun VideoScreen(
             isListView = isListView
         )
         return
-    }
-
-    fun triggerScan() {
-        if (isScanning) return
-        coroutineScope.launch {
-            isScanning = true
-            val detectedVideos = withContext(Dispatchers.IO) {
-                scanner.scanDeviceVideos()
-            }
-            val detectedFolders = scanner.extractFolders(detectedVideos)
-            scannedVideos = detectedVideos
-            scannedFolders = detectedFolders
-            isScanning = false
-        }
-    }
-
-    // Media permissions state handler
-    val mediaPermissionState = rememberMediaPermissionState(
-        type = MediaPermissionType.VIDEO,
-        onPermissionGranted = {
-            triggerScan()
-        }
-    )
-
-    // Initial load: If permission is already granted and no videos yet, trigger media scan
-    LaunchedEffect(mediaPermissionState.hasAccess) {
-        if (mediaPermissionState.hasAccess && scannedVideos.isEmpty()) {
-            triggerScan()
-        }
-    }
-
-    // Automatically update the list when new videos are added to the device storage
-    DisposableEffect(mediaPermissionState.hasAccess) {
-        if (!mediaPermissionState.hasAccess) return@DisposableEffect onDispose {}
-
-        val contentObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
-            override fun onChange(selfChange: Boolean) {
-                super.onChange(selfChange)
-                if (!isScanning) {
-                    triggerScan()
-                }
-            }
-        }
-
-        try {
-            context.contentResolver.registerContentObserver(
-                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                false,
-                contentObserver
-            )
-        } catch (_: Exception) {}
-
-        onDispose {
-            try {
-                context.contentResolver.unregisterContentObserver(contentObserver)
-            } catch (_: Exception) {}
-        }
     }
 
     // Filter videos according to selected filter tab
@@ -295,6 +279,18 @@ fun VideoScreen(
             )
         }
 
+        // Linear Progress bar during scanning if total count is known
+        if (scanProgress.isScanning && scanProgress.totalCount > 0) {
+            LinearProgressIndicator(
+                progress = { scanProgress.progressFraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp),
+                color = F2WCyanPrimary,
+                trackColor = F2WCyanPrimary.copy(alpha = 0.2f)
+            )
+        }
+
         LazyVerticalGrid(
             columns = GridCells.Fixed(columnsCount),
             modifier = Modifier
@@ -309,7 +305,7 @@ fun VideoScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Status bar showing active mode and video count
+            // Status bar showing active mode, video count, and scan progress/cancellation
             item(span = { GridItemSpan(columnsCount) }) {
                 Row(
                     modifier = Modifier
@@ -334,7 +330,7 @@ fun VideoScreen(
                     )
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isScanning) {
+                        if (scanProgress.isScanning) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(12.dp),
                                 color = F2WCyanPrimary,
@@ -342,12 +338,34 @@ fun VideoScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Scanning...",
+                                text = if (scanProgress.totalCount > 0) {
+                                    "Scanning (${scanProgress.scannedCount}/${scanProgress.totalCount})"
+                                } else {
+                                    "Scanning..."
+                                },
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = F2WCyanPrimary,
-                                    fontSize = 11.sp
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            // Cancel Scan button
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFF331520))
+                                    .clickable { scanner.cancelScan() }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .testTag("cancel_scan_btn")
+                            ) {
+                                Text(
+                                    text = "Stop",
+                                    color = Color(0xFFFF5252),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         } else {
                             Text(
                                 text = if (isListView) "List View" else "2-Column Grid",
@@ -363,17 +381,20 @@ fun VideoScreen(
 
             // Video Content Area (List or 2-Column Grid)
             if (selectedFilter == VideoFilterMode.GROUP_BY_NAME) {
-                if (nameGroups.isEmpty() && !isScanning) {
+                if (nameGroups.isEmpty() && !scanProgress.isScanning) {
                     item(span = { GridItemSpan(columnsCount) }) {
                         F2WEmptyState(
                             icon = Icons.Outlined.VideoLibrary,
-                            title = "No Video Groups Found",
-                            description = "Videos with matching or similar movie names will be automatically grouped here in 2 columns.",
+                            title = if (mediaPermissionState.hasAccess) "No Video Groups Found" else "Permission Required",
+                            description = if (mediaPermissionState.hasAccess)
+                                "Videos with matching or similar movie names will be automatically grouped here in 2 columns."
+                            else
+                                "Storage permission is required to discover and group video files.",
                             actionLabel = if (mediaPermissionState.hasAccess) "Scan Device Videos" else "Grant Storage Permission",
                             actionIcon = Icons.Filled.Refresh,
                             onActionClick = {
                                 if (mediaPermissionState.hasAccess) {
-                                    triggerScan()
+                                    scanner.startScan(forceFullRescan = true)
                                 } else {
                                     mediaPermissionState.requestPermissions()
                                 }
@@ -402,17 +423,20 @@ fun VideoScreen(
                     }
                 }
             } else if (selectedFilter == VideoFilterMode.GROUP_BY_FOLDER) {
-                if (computedFolders.isEmpty() && !isScanning) {
+                if (computedFolders.isEmpty() && !scanProgress.isScanning) {
                     item(span = { GridItemSpan(columnsCount) }) {
                         F2WEmptyState(
                             icon = Icons.Outlined.VideoLibrary,
-                            title = "No Video Folders Found",
-                            description = "Video folders on your device (e.g. Movies, Downloads, Camera) will be displayed here in 2 columns once storage is scanned.",
+                            title = if (mediaPermissionState.hasAccess) "No Video Folders Found" else "Permission Required",
+                            description = if (mediaPermissionState.hasAccess)
+                                "Video folders on your device (e.g. Movies, Downloads, Camera) will be displayed here in 2 columns once storage is scanned."
+                            else
+                                "Storage permission is required to list device video folders.",
                             actionLabel = if (mediaPermissionState.hasAccess) "Scan Device Videos" else "Grant Storage Permission",
                             actionIcon = Icons.Filled.Refresh,
                             onActionClick = {
                                 if (mediaPermissionState.hasAccess) {
-                                    triggerScan()
+                                    scanner.startScan(forceFullRescan = true)
                                 } else {
                                     mediaPermissionState.requestPermissions()
                                 }
@@ -441,7 +465,7 @@ fun VideoScreen(
                     }
                 }
             } else {
-                if (displayedVideos.isEmpty() && !isScanning) {
+                if (displayedVideos.isEmpty() && !scanProgress.isScanning) {
                     item(span = { GridItemSpan(columnsCount) }) {
                         if (selectedFilter == VideoFilterMode.RECENTLY_PLAYED) {
                             F2WEmptyState(
@@ -466,7 +490,7 @@ fun VideoScreen(
                                 actionIcon = Icons.Filled.Refresh,
                                 onActionClick = {
                                     if (mediaPermissionState.hasAccess) {
-                                        triggerScan()
+                                        scanner.startScan(forceFullRescan = true)
                                     } else {
                                         mediaPermissionState.requestPermissions()
                                     }
@@ -488,10 +512,14 @@ fun VideoScreen(
                                 video = video,
                                 isFavorite = favoriteVideoIds.contains(video.id),
                                 onToggleFavorite = {
-                                    if (favoriteVideoIds.contains(video.id)) {
-                                        favoriteVideoIds.remove(video.id)
-                                    } else {
+                                    val newFav = !favoriteVideoIds.contains(video.id)
+                                    if (newFav) {
                                         favoriteVideoIds.add(video.id)
+                                    } else {
+                                        favoriteVideoIds.remove(video.id)
+                                    }
+                                    coroutineScope.launch {
+                                        scanner.updateFavorite(video.id, newFav)
                                     }
                                 },
                                 onClick = { onVideoClick(video) },
@@ -509,25 +537,32 @@ fun VideoScreen(
             }
         }
 
-        // Smart Pop Menu with Options matching the user's design
+        // Smart Pop Menu with Options
         activeVideoForMenu?.let { video ->
             VideoActionSmartMenu(
                 video = video,
                 onDismissRequest = { activeVideoForMenu = null },
                 onDeleteVideo = { deleted ->
-                    scannedVideos = scannedVideos.filter { it.id != deleted.id }
+                    coroutineScope.launch {
+                        scanner.deleteVideoFromDb(deleted.id)
+                    }
                 },
                 onRenameVideo = { target, newName ->
-                    scannedVideos = scannedVideos.map {
-                        if (it.id == target.id) it.copy(title = newName) else it
+                    coroutineScope.launch {
+                        scanner.updateVideoTitle(target.id, newName)
                     }
                 },
                 onLockInPrivateFolder = { locked ->
-                    scannedVideos = scannedVideos.filter { it.id != locked.id }
+                    coroutineScope.launch {
+                        scanner.deleteVideoFromDb(locked.id)
+                    }
                 }
             )
         }
     }
+
+    // Permission rationale dialog if permanently denied
+    MediaPermissionRationaleDialog(permissionState = mediaPermissionState)
 }
 
 @Composable
@@ -567,7 +602,7 @@ private fun FilterPillButton(
         ) {
             // Icon
             if (mode == VideoFilterMode.RECENTLY_ADDED) {
-                // "NEW" badge box matching the user's mockup
+                // "NEW" badge box
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(3.dp))
