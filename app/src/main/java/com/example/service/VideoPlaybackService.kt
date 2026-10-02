@@ -47,7 +47,6 @@ class VideoPlaybackService : Service() {
             ACTION_NEXT -> videoManager.playNext()
             ACTION_PREV -> videoManager.playPrevious()
             ACTION_STOP -> {
-                videoManager.stopPlayback()
                 stopForegroundInternal()
                 stopSelf()
                 return START_NOT_STICKY
@@ -275,13 +274,9 @@ class VideoPlaybackService : Service() {
 
         fun stop(context: Context) {
             try {
-                val intent = Intent(context, VideoPlaybackService::class.java).apply {
-                    action = ACTION_STOP
-                }
-                context.startService(intent)
-                context.stopService(Intent(context, VideoPlaybackService::class.java))
                 val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                 nm?.cancel(NOTIFICATION_ID)
+                context.stopService(Intent(context, VideoPlaybackService::class.java))
             } catch (e: Exception) {
                 e.printStackTrace()
             }
