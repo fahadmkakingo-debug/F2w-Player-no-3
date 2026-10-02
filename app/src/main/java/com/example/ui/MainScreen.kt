@@ -266,21 +266,23 @@ fun MainScreen(
         // Fullscreen XPlayer Overlay: Stays on top without destroying VideoScreen scroll state
         if (isFullScreenVideoOpen && currentPlayingVideo != null) {
             val playerQueue = if (videoManager.playlist.value.isNotEmpty()) videoManager.playlist.value else allScannedVideos
-            XVideoPlayerScreen(
-                video = currentPlayingVideo!!,
-                allVideos = playerQueue,
-                isInPipMode = isInPipMode,
-                onRequestPip = {
-                    onRequestPip()
-                },
-                onToggleOrientation = onToggleOrientation,
-                onBack = {
-                    videoManager.closeFullScreen()
-                },
-                onVideoChange = { nextVideo ->
-                    videoManager.playVideo(nextVideo, playerQueue)
-                }
-            )
+            androidx.compose.runtime.key(currentPlayingVideo!!.id) {
+                XVideoPlayerScreen(
+                    video = currentPlayingVideo!!,
+                    allVideos = playerQueue,
+                    isInPipMode = isInPipMode,
+                    onRequestPip = {
+                        onRequestPip()
+                    },
+                    onToggleOrientation = onToggleOrientation,
+                    onBack = {
+                        videoManager.closeFullScreen()
+                    },
+                    onVideoChange = { nextVideo ->
+                        videoManager.playVideo(nextVideo, playerQueue)
+                    }
+                )
+            }
         }
 
         // Search Screen Overlay

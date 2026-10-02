@@ -80,7 +80,7 @@ fun XVideoPlayerScreen(
     val recentlyPlayedManager = remember { RecentlyPlayedManager.getInstance(context) }
 
     val videoManager = remember { VideoPlaybackManager.getInstance(context) }
-    val exoPlayer = remember { videoManager.getOrCreatePlayer() }
+    val exoPlayer = remember(video.id) { videoManager.getOrCreatePlayer() }
 
     val isBackgroundAudio by videoManager.isBackgroundAudioEnabled.collectAsState()
     val isPlaying by videoManager.isPlaying.collectAsState()
@@ -228,7 +228,7 @@ fun XVideoPlayerScreen(
     }
 
     // Clean up player view on exit
-    DisposableEffect(Unit) {
+    DisposableEffect(video.id) {
         onDispose {
             if (currentPositionMs > 0L) {
                 recentlyPlayedManager.savePlaybackPosition(currentVideo.id, currentPositionMs)
