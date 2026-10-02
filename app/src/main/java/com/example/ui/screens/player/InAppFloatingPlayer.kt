@@ -82,14 +82,24 @@ fun InAppFloatingPlayer(
         val playableUri = if (video.uriString.startsWith("content://") ||
             video.uriString.startsWith("file://") ||
             video.uriString.endsWith(".mp4") ||
-            video.uriString.endsWith(".mkv")
+            video.uriString.endsWith(".mkv") ||
+            video.uriString.endsWith(".dd0") ||
+            video.title.endsWith(".dd0", ignoreCase = true)
         ) {
             Uri.parse(video.uriString)
         } else {
             Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")
         }
 
-        exoPlayer.setMediaItem(MediaItem.fromUri(playableUri))
+        val mediaItemBuilder = MediaItem.Builder().setUri(playableUri)
+        if (video.title.endsWith(".dd0", ignoreCase = true) ||
+            video.uriString.endsWith(".dd0", ignoreCase = true) ||
+            playableUri.path?.endsWith(".dd0", ignoreCase = true) == true
+        ) {
+            mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP4)
+        }
+
+        exoPlayer.setMediaItem(mediaItemBuilder.build())
         exoPlayer.prepare()
         exoPlayer.play()
     }

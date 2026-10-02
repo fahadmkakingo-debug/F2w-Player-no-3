@@ -19,7 +19,7 @@ object VideoNameGrouper {
     )
 
     private val containerExtensionsRegex =
-        "\\.(mp4|mkv|avi|mov|webm|flv|wmv|m4v|3gp|ts)$".toRegex(RegexOption.IGNORE_CASE)
+        "\\.(mp4|mkv|avi|mov|webm|flv|wmv|m4v|3gp|ts|dd0)$".toRegex(RegexOption.IGNORE_CASE)
     private val delimitersRegex = "[_\\[\\]()]".toRegex()
     private val yearsRegex = "\\b(19\\d{2}|20\\d{2})\\b".toRegex()
     private val qualityLabelsRegex =

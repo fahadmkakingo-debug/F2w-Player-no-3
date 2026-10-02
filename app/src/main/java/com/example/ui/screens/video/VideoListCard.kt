@@ -64,6 +64,7 @@ fun VideoListCard(
         val titleLower = video.title.lowercase()
         val uriLower = video.uriString.lowercase()
         when {
+            titleLower.endsWith(".dd0") || uriLower.endsWith(".dd0") || titleLower.contains(".dd0") -> "DD0"
             titleLower.contains("mkv") || uriLower.endsWith(".mkv") -> "MKV"
             titleLower.contains("avi") || uriLower.endsWith(".avi") -> "AVI"
             titleLower.contains("webm") || uriLower.endsWith(".webm") -> "WEBM"
@@ -73,6 +74,7 @@ fun VideoListCard(
     }
 
     val (badgeBg, badgeText, badgeBorder) = when (format) {
+        "DD0" -> Triple(Color(0x3300E5FF), Color(0xFF00E5FF), Color(0x6600E5FF))
         "MKV" -> Triple(Color(0x338A4DFF), Color(0xFFB588FF), Color(0x668A4DFF))
         "AVI" -> Triple(Color(0x33FF9800), Color(0xFFFFB74D), Color(0x66FF9800))
         "WEBM" -> Triple(Color(0x3300E676), Color(0xFF69F0AE), Color(0x6600E676))

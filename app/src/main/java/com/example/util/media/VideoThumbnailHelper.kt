@@ -53,8 +53,17 @@ object VideoThumbnailHelper {
         uriString: String,
         frameMillis: Long = 1000L
     ): ImageRequest {
-        val dataObj = when {
-            uriString.startsWith("content://") || uriString.startsWith("file://") -> Uri.parse(uriString)
+        val dataObj: Any = when {
+            uriString.startsWith("file://") -> {
+                try {
+                    val path = Uri.parse(uriString).path ?: uriString.removePrefix("file://")
+                    java.io.File(path)
+                } catch (_: Exception) {
+                    Uri.parse(uriString)
+                }
+            }
+            uriString.startsWith("content://") -> Uri.parse(uriString)
+            uriString.startsWith("/") -> java.io.File(uriString)
             else -> uriString
         }
 

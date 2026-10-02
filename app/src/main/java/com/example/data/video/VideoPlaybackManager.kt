@@ -249,6 +249,12 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
         }
 
         val mediaItemBuilder = MediaItem.Builder().setUri(playableUri)
+        if (video.title.endsWith(".dd0", ignoreCase = true) ||
+            video.uriString.endsWith(".dd0", ignoreCase = true) ||
+            playableUri.path?.endsWith(".dd0", ignoreCase = true) == true
+        ) {
+            mediaItemBuilder.setMimeType(MimeTypes.VIDEO_MP4)
+        }
         val localSub = detectLocalSubtitle(video)
         if (localSub != null) {
             val subConfig = MediaItem.SubtitleConfiguration.Builder(localSub.first)

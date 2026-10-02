@@ -743,6 +743,7 @@ fun VideoActionSmartMenu(
                     PropertyRow(label = "File Size", value = video.sizeText)
                     PropertyRow(label = "Folder", value = video.folderName)
                     val format = when {
+                        video.title.endsWith(".dd0", ignoreCase = true) || video.uriString.endsWith(".dd0", ignoreCase = true) -> "DD0 Video (MP4 Container)"
                         video.title.endsWith(".mkv", ignoreCase = true) -> "MKV (Matroska)"
                         video.title.endsWith(".avi", ignoreCase = true) -> "AVI Video"
                         video.title.endsWith(".mov", ignoreCase = true) -> "QuickTime MOV"

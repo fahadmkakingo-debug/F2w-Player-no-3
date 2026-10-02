@@ -282,7 +282,8 @@ class PlaylistManager private constructor(private val appContext: Context) {
         val cleanTitle = if (title.endsWith(".mp4", ignoreCase = true) ||
             title.endsWith(".avi", ignoreCase = true) ||
             title.endsWith(".mkv", ignoreCase = true) ||
-            title.endsWith(".mov", ignoreCase = true)
+            title.endsWith(".mov", ignoreCase = true) ||
+            title.endsWith(".dd0", ignoreCase = true)
         ) {
             title.substringBeforeLast(".")
         } else title
