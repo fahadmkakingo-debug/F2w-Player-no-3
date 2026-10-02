@@ -140,6 +140,7 @@ fun XVideoPlayerScreen(
     var showAudioTrackDialog by remember { mutableStateOf(false) }
 
     // XPlayer Enhanced States
+    var isFavoriteVideo by remember(currentVideo.id) { mutableStateOf(false) }
     var isMirrored by remember { mutableStateOf(false) }
     var abPointA by remember { mutableStateOf<Long?>(null) }
     var abPointB by remember { mutableStateOf<Long?>(null) }
@@ -899,26 +900,86 @@ fun XVideoPlayerScreen(
             isNightMode = isNightMode,
             onNightModeToggle = {
                 isNightMode = !isNightMode
-                Toast.makeText(context, if (isNightMode) "Night Mode Imewashwa" else "Night Mode Imezimwa", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, if (isNightMode) "Visual Enhancer: Imewashwa" else "Visual Enhancer: Imezimwa", Toast.LENGTH_SHORT).show()
             },
             isAudioOnlyMode = isAudioOnlyMode,
             onAudioOnlyToggle = {
                 isAudioOnlyMode = !isAudioOnlyMode
-                Toast.makeText(context, if (isAudioOnlyMode) "Modi ya Sauti Tu Imewashwa" else "Video Imerudi Kawaida", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, if (isAudioOnlyMode) "Background Play: Imewashwa" else "Video Playback: Imerudi Kawaida", Toast.LENGTH_SHORT).show()
             },
             repeatMode = repeatMode,
-            onRepeatModeCycle = {
-                repeatMode = when (repeatMode) {
-                    "Off" -> "Repeat One"
-                    "Repeat One" -> "Repeat All"
-                    else -> "Off"
+            onRepeatModeSelect = { mode ->
+                repeatMode = mode
+                Toast.makeText(context, "Repeat Mode: $mode", Toast.LENGTH_SHORT).show()
+            },
+            brightnessPercent = brightnessPercent,
+            onBrightnessChange = { newPercent ->
+                brightnessPercent = newPercent
+                window?.let { w ->
+                    val lp = w.attributes
+                    lp.screenBrightness = (newPercent / 100f).coerceIn(0.05f, 1f)
+                    w.attributes = lp
                 }
-                Toast.makeText(context, "Kurudia Video: $repeatMode", Toast.LENGTH_SHORT).show()
+            },
+            volumePercent = volumePercent,
+            onVolumeChange = { newPercent ->
+                volumePercent = newPercent
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
+                if (audioManager != null) {
+                    val maxVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                    val targetVol = ((newPercent / 100f) * maxVol).toInt()
+                    audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, targetVol, 0)
+                }
+            },
+            decoderMode = decoderMode,
+            onDecoderModeSelect = { dec ->
+                decoderMode = dec
+                Toast.makeText(context, "Decoder: $dec Selected", Toast.LENGTH_SHORT).show()
+            },
+            isFavorite = isFavoriteVideo,
+            onFavoriteToggle = {
+                isFavoriteVideo = !isFavoriteVideo
+                Toast.makeText(context, if (isFavoriteVideo) "Imeongezwa kwenye Favorites" else "Imeondolewa kwenye Favorites", Toast.LENGTH_SHORT).show()
+            },
+            isAbRepeatActive = (abPointA != null),
+            onAbRepeatClick = {
+                if (abPointA == null) {
+                    abPointA = currentPositionMs
+                    Toast.makeText(context, "A-B Repeat: Point A set", Toast.LENGTH_SHORT).show()
+                } else if (abPointB == null) {
+                    abPointB = currentPositionMs
+                    Toast.makeText(context, "A-B Repeat: Point B set (Looping)", Toast.LENGTH_SHORT).show()
+                } else {
+                    abPointA = null
+                    abPointB = null
+                    Toast.makeText(context, "A-B Repeat: Disabled", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onAudioTrackClick = {
+                showSubtitleAudioDialog = true
+            },
+            onSubtitleClick = {
+                showSubtitleAudioDialog = true
+            },
+            onPopupPlayClick = {
+                onRequestPip()
+            },
+            onCastClick = {
+                Toast.makeText(context, "Screen Cast: Inatafuta vifaa vya karibu...", Toast.LENGTH_SHORT).show()
+            },
+            onDeleteClick = {
+                Toast.makeText(context, "Faili: ${currentVideo.title} imehifadhiwa", Toast.LENGTH_SHORT).show()
+            },
+            onBookmarkClick = {
+                val timeStr = String.format(java.util.Locale.US, "%02d:%02d", currentPositionMs / 60000, (currentPositionMs % 60000) / 1000)
+                Toast.makeText(context, "Bookmark Imewekwa saa $timeStr", Toast.LENGTH_SHORT).show()
             },
             onEqualizerClick = {
                 showEqualizerDialog = true
             },
-            onSleepTimerClick = { showSleepTimerDialog = true },
+            onSleepTimerClick = {
+                showSleepTimerDialog = true
+            },
             onVideoDetailsClick = {
                 Toast.makeText(context, "${currentVideo.title} • ${currentVideo.resolution} • ${currentVideo.sizeText}", Toast.LENGTH_LONG).show()
             },

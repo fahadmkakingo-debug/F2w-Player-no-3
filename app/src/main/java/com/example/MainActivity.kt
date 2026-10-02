@@ -89,7 +89,33 @@ class MainActivity : ComponentActivity() {
             var height = 0
             try {
                 val retriever = android.media.MediaMetadataRetriever()
-                retriever.setDataSource(applicationContext, uri)
+                if (uri.scheme == "file" && !uri.path.isNullOrBlank()) {
+                    val file = java.io.File(uri.path!!)
+                    if (file.exists()) {
+                        val fis = java.io.FileInputStream(file)
+                        try {
+                            retriever.setDataSource(fis.fd)
+                        } finally {
+                            fis.close()
+                        }
+                    } else {
+                        retriever.setDataSource(applicationContext, uri)
+                    }
+                } else if (uri.scheme == "content") {
+                    val pfd = contentResolver.openFileDescriptor(uri, "r")
+                    if (pfd != null) {
+                        try {
+                            retriever.setDataSource(pfd.fileDescriptor)
+                        } finally {
+                            pfd.close()
+                        }
+                    } else {
+                        retriever.setDataSource(applicationContext, uri)
+                    }
+                } else {
+                    retriever.setDataSource(applicationContext, uri)
+                }
+
                 val durStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
                 durationMs = durStr?.toLongOrNull() ?: 0L
                 val wStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)

@@ -37,6 +37,7 @@ class VideoPlaybackLifecycleTest {
     fun testVideoSequence_PlayBackPlayBackMultipleVideos() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val manager = VideoPlaybackManager.getInstance(context)
+        manager.setBackgroundAudioEnabled(false)
 
         val video1 = createTestVideo("1", "Video 1")
         val video2 = createTestVideo("2", "Video 2")

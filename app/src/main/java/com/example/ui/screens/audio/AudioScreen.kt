@@ -87,6 +87,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.audio.AudioPlaybackManager
 import com.example.data.playlist.PlaylistItemModel
 import com.example.data.playlist.PlaylistManager
+import com.example.data.security.PrivacyVaultManager
 import com.example.ui.components.F2WEmptyState
 import com.example.ui.components.permission.rememberMediaPermissionState
 import com.example.ui.theme.F2WCardBorder
@@ -156,15 +157,25 @@ fun AudioScreen(
     var showSortDialog by remember { mutableStateOf(false) }
     var sortBy by remember { mutableStateOf("Name") } // Name, Date, Size, Duration
 
+    val vaultManager = remember { PrivacyVaultManager.getInstance(context) }
+
     fun scanAudio() {
         if (isLoading) return
         coroutineScope.launch {
             isLoading = true
             val audios = withContext(Dispatchers.IO) {
-                playlistManager.getAvailableAudios()
+                playlistManager.getAvailableAudios().filter {
+                    !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+                }
             }
             audioTracks = audios
             isLoading = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        vaultManager.vaultUpdates.collect {
+            scanAudio()
         }
     }
 

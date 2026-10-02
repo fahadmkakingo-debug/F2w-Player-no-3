@@ -92,6 +92,29 @@ class AudioPlaybackManager private constructor(private val appContext: Context) 
     init {
         initPlayer()
         loadFavorites()
+
+        // Listen for Privacy Vault updates to purge private items from audio playback queue
+        scope.launch {
+            val vaultManager = com.example.data.security.PrivacyVaultManager.getInstance(appContext)
+            vaultManager.vaultUpdates.collect {
+                val current = _currentTrack.value
+                if (current != null && (vaultManager.isPathOrUriInVault(current.uriString, current.id) || vaultManager.isPathOrUriInVault(current.title))) {
+                    pause()
+                    _currentTrack.value = null
+                    _isMiniPlayerVisible.value = false
+                    _isFullScreenOpen.value = false
+                    android.widget.Toast.makeText(
+                        appContext,
+                        "Wimbo huu umehamishwa kwenye Privacy Vault.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+
+                _playlist.value = _playlist.value.filter {
+                    !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+                }
+            }
+        }
     }
 
     private fun initPlayer() {
@@ -168,6 +191,19 @@ class AudioPlaybackManager private constructor(private val appContext: Context) 
     }
 
     private fun playTrackInternal(track: PlaylistItemModel) {
+        val vaultManager = com.example.data.security.PrivacyVaultManager.getInstance(appContext)
+        if (vaultManager.isPathOrUriInVault(track.uriString, track.id) || vaultManager.isPathOrUriInVault(track.title)) {
+            android.widget.Toast.makeText(
+                appContext,
+                "Faili hii ipo kwenye Privacy Vault. Fungua kupitia sehemu ya Privacy.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            pause()
+            _currentTrack.value = null
+            _isMiniPlayerVisible.value = false
+            return
+        }
+
         _currentTrack.value = track
         _isMiniPlayerVisible.value = true
         _currentPositionMs.value = 0L

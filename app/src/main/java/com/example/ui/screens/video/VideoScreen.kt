@@ -103,6 +103,8 @@ fun VideoScreen(
     folders: List<VideoFolder> = emptyList(),
     isListView: Boolean = false,
     onToggleViewMode: () -> Unit = {},
+    showSortDialog: Boolean = false,
+    onDismissSortDialog: () -> Unit = {},
     onVideoClick: (VideoItem, List<VideoItem>) -> Unit = { _, _ -> },
     onFolderClick: (VideoFolder) -> Unit = {},
     gridState: LazyGridState = rememberLazyGridState()
@@ -118,6 +120,15 @@ fun VideoScreen(
     val scanProgress by scanner.scanProgressState.collectAsState()
 
     val videoSettings = remember { com.example.data.settings.VideoSettingsPreferences(context) }
+    var currentSortOption by remember {
+        mutableStateOf(
+            try {
+                VideoSortOption.valueOf(videoSettings.videoSortOption)
+            } catch (_: Exception) {
+                VideoSortOption.NAME_ASC
+            }
+        )
+    }
     var selectedFilter by remember {
         mutableStateOf(
             try {
@@ -127,19 +138,77 @@ fun VideoScreen(
             }
         )
     }
+
+    fun parseSizeToBytes(sizeText: String): Long {
+        return try {
+            val parts = sizeText.trim().split(" ")
+            val num = parts.firstOrNull()?.toDoubleOrNull() ?: 0.0
+            val unit = parts.getOrNull(1)?.uppercase() ?: ""
+            when {
+                unit.contains("GB") -> (num * 1024 * 1024 * 1024).toLong()
+                unit.contains("MB") -> (num * 1024 * 1024).toLong()
+                unit.contains("KB") -> (num * 1024).toLong()
+                else -> num.toLong()
+            }
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    fun List<VideoItem>.applySort(option: VideoSortOption): List<VideoItem> {
+        return when (option) {
+            VideoSortOption.NAME_ASC -> sortedBy { it.title.lowercase() }
+            VideoSortOption.NAME_DESC -> sortedByDescending { it.title.lowercase() }
+            VideoSortOption.DATE_NEWEST -> sortedWith(
+                compareByDescending<VideoItem> { it.dateAdded }
+                    .thenByDescending { it.id.toLongOrNull() ?: 0L }
+            )
+            VideoSortOption.DATE_OLDEST -> sortedWith(
+                compareBy<VideoItem> { it.dateAdded }
+                    .thenBy { it.id.toLongOrNull() ?: 0L }
+            )
+            VideoSortOption.SIZE_LARGEST -> sortedByDescending { parseSizeToBytes(it.sizeText) }
+            VideoSortOption.SIZE_SMALLEST -> sortedBy { parseSizeToBytes(it.sizeText) }
+            VideoSortOption.DURATION_LONGEST -> sortedByDescending { it.durationMs }
+            VideoSortOption.DURATION_SHORTEST -> sortedBy { it.durationMs }
+        }
+    }
+
+    fun List<VideoFolder>.applyFolderSort(option: VideoSortOption): List<VideoFolder> {
+        return when (option) {
+            VideoSortOption.NAME_ASC -> sortedBy { it.name.lowercase() }
+            VideoSortOption.NAME_DESC -> sortedByDescending { it.name.lowercase() }
+            VideoSortOption.DATE_NEWEST -> sortedByDescending { folder ->
+                folder.videos.maxOfOrNull { it.dateAdded } ?: 0L
+            }
+            VideoSortOption.DATE_OLDEST -> sortedBy { folder ->
+                folder.videos.minOfOrNull { it.dateAdded } ?: 0L
+            }
+            VideoSortOption.SIZE_LARGEST -> sortedByDescending { folder ->
+                folder.videos.sumOf { parseSizeToBytes(it.sizeText) }
+            }
+            VideoSortOption.SIZE_SMALLEST -> sortedBy { folder ->
+                folder.videos.sumOf { parseSizeToBytes(it.sizeText) }
+            }
+            VideoSortOption.DURATION_LONGEST -> sortedByDescending { folder ->
+                folder.videos.sumOf { it.durationMs }
+            }
+            VideoSortOption.DURATION_SHORTEST -> sortedBy { folder ->
+                folder.videos.sumOf { it.durationMs }
+            }
+        }
+    }
     var activeVideoForMenu by remember { mutableStateOf<VideoItem?>(null) }
     var activeGroupDetail by remember { mutableStateOf<VideoNameGroup?>(null) }
     var activeFolderDetail by remember { mutableStateOf<VideoFolder?>(null) }
     val favoriteVideoIds = remember { mutableStateListOf<String>() }
 
     val vaultManager = remember { PrivacyVaultManager.getInstance(context) }
-    var movedVaultPaths by remember {
-        mutableStateOf(vaultManager.getVaultItems().map { it.originalPath.lowercase() }.toSet())
-    }
+    var vaultUpdateTrigger by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         vaultManager.vaultUpdates.collect {
-            movedVaultPaths = vaultManager.getVaultItems().map { it.originalPath.lowercase() }.toSet()
+            vaultUpdateTrigger++
         }
     }
 
@@ -187,11 +256,9 @@ fun VideoScreen(
 
     val effectiveVideos = if (dbVideos.isNotEmpty()) dbVideos else videos
 
-    val availableVideos = remember(effectiveVideos, movedVaultPaths) {
-        if (movedVaultPaths.isEmpty()) effectiveVideos
-        else effectiveVideos.filter { v ->
-            !movedVaultPaths.contains(v.uriString.lowercase()) &&
-            !movedVaultPaths.any { path -> path.isNotBlank() && path.endsWith(v.title.lowercase()) }
+    val availableVideos = remember(effectiveVideos, vaultUpdateTrigger) {
+        effectiveVideos.filter { v ->
+            !vaultManager.isPathOrUriInVault(v.uriString, v.id) && !vaultManager.isPathOrUriInVault(v.title)
         }
     }
 
@@ -200,8 +267,19 @@ fun VideoScreen(
         VideoNameGrouper.groupVideosByName(availableVideos)
     }
 
-    val computedFolders = remember(availableVideos) {
-        scanner.extractFolders(availableVideos)
+    val computedFolders = remember(availableVideos, currentSortOption) {
+        scanner.extractFolders(availableVideos).applyFolderSort(currentSortOption)
+    }
+
+    if (showSortDialog) {
+        VideoSortDialog(
+            selectedOption = currentSortOption,
+            onOptionSelected = { newOpt ->
+                currentSortOption = newOpt
+                videoSettings.videoSortOption = newOpt.name
+            },
+            onDismissRequest = onDismissSortDialog
+        )
     }
 
     if (activeGroupDetail != null) {
@@ -224,11 +302,11 @@ fun VideoScreen(
         return
     }
 
-    // Filter videos according to selected filter tab
-    val displayedVideos = remember(selectedFilter, availableVideos, recentlyPlayedIds) {
-        when (selectedFilter) {
+    // Filter videos according to selected filter tab & current sort option
+    val displayedVideos = remember(selectedFilter, availableVideos, recentlyPlayedIds, currentSortOption) {
+        val baseList = when (selectedFilter) {
             VideoFilterMode.ALL_VIDEO -> availableVideos
-            VideoFilterMode.GROUP_BY_NAME -> availableVideos.sortedBy { it.title.lowercase() }
+            VideoFilterMode.GROUP_BY_NAME -> availableVideos
             VideoFilterMode.RECENTLY_ADDED -> availableVideos.sortedWith(
                 compareByDescending<VideoItem> { it.dateAdded }
                     .thenByDescending { it.id.toLongOrNull() ?: 0L }
@@ -237,6 +315,12 @@ fun VideoScreen(
                 recentlyPlayedManager.getRecentlyPlayedVideos(availableVideos)
             }
             VideoFilterMode.GROUP_BY_FOLDER -> availableVideos
+        }
+
+        if (selectedFilter == VideoFilterMode.RECENTLY_ADDED || selectedFilter == VideoFilterMode.RECENTLY_PLAYED) {
+            baseList
+        } else {
+            baseList.applySort(currentSortOption)
         }
     }
 

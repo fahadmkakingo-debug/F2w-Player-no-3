@@ -26,7 +26,12 @@ class VideoSettingsPreferences(context: Context) {
         private const val KEY_REMEMBER_SPEED = "remember_speed"
         private const val KEY_REMEMBER_BRIGHTNESS = "remember_brightness"
         private const val KEY_SELECTED_VIDEO_FILTER = "selected_video_filter"
+        private const val KEY_VIDEO_SORT_OPTION = "video_sort_option"
     }
+
+    var videoSortOption: String
+        get() = prefs.getString(KEY_VIDEO_SORT_OPTION, "NAME_ASC") ?: "NAME_ASC"
+        set(value) = prefs.edit().putString(KEY_VIDEO_SORT_OPTION, value).apply()
 
     var selectedVideoFilter: String
         get() = prefs.getString(KEY_SELECTED_VIDEO_FILTER, "ALL_VIDEO") ?: "ALL_VIDEO"

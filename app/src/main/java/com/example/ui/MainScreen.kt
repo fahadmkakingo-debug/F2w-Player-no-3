@@ -107,6 +107,7 @@ fun MainScreen(
 
     var selectedTab by remember { mutableStateOf(NavTab.VIDEO) }
     var showSearchDialog by remember { mutableStateOf(false) }
+    var showSortDialog by remember { mutableStateOf(false) }
     var showSettingsPage by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
     var showEqualizerScreen by remember { mutableStateOf(false) }
@@ -152,9 +153,12 @@ fun MainScreen(
         return
     }
 
-    // Back handling: If on secondary tab, return to Video tab
+    var isPrivacyUnlocked by remember { mutableStateOf(false) }
+
+    // Back handling: If on secondary tab, return to Video tab & relock Privacy
     BackHandler(enabled = selectedTab != NavTab.VIDEO) {
         selectedTab = NavTab.VIDEO
+        isPrivacyUnlocked = false
     }
 
     val subtitle = when (selectedTab) {
@@ -178,7 +182,7 @@ fun MainScreen(
             containerColor = if (currentTheme.isLiveAnimated) Color.Transparent else F2WBackground,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
-                if (selectedTab != NavTab.AUDIO) {
+                if (selectedTab == NavTab.VIDEO) {
                     F2WTopBar(
                         subtitle = subtitle,
                         onSearchClick = { showSearchDialog = true },
@@ -194,28 +198,33 @@ fun MainScreen(
                         onEqualiserClick = {
                             showEqualizerScreen = true
                         },
+                        onSortClick = {
+                            showSortDialog = true
+                        },
                         onSettingsClick = { showSettingsPage = true }
                     )
                 }
             },
             bottomBar = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    com.example.ui.screens.video.VideoMiniPlayerBar(
-                        videoManager = videoManager,
-                        onExpand = { videoManager.openFullScreen() }
-                    )
-                    com.example.ui.screens.audio.AudioMiniPlayerBar(
-                        audioManager = audioManager,
-                        onExpand = { audioManager.openFullScreen() },
-                        onOpenQueue = { audioManager.openFullScreen() }
-                    )
-                    FloatingNavBar(
-                        selectedTab = selectedTab,
-                        onTabSelected = { selectedTab = it }
-                    )
+                if (selectedTab != NavTab.PRIVACY || !isPrivacyUnlocked) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        com.example.ui.screens.video.VideoMiniPlayerBar(
+                            videoManager = videoManager,
+                            onExpand = { videoManager.openFullScreen() }
+                        )
+                        com.example.ui.screens.audio.AudioMiniPlayerBar(
+                            audioManager = audioManager,
+                            onExpand = { audioManager.openFullScreen() },
+                            onOpenQueue = { audioManager.openFullScreen() }
+                        )
+                        FloatingNavBar(
+                            selectedTab = selectedTab,
+                            onTabSelected = { selectedTab = it }
+                        )
+                    }
                 }
             }
         ) { innerPadding ->
@@ -246,6 +255,8 @@ fun MainScreen(
                             },
                             isListView = isListView,
                             onToggleViewMode = { isListView = !isListView },
+                            showSortDialog = showSortDialog,
+                            onDismissSortDialog = { showSortDialog = false },
                             onVideoClick = { clickedVideo, playlist ->
                                 videoManager.playVideo(clickedVideo, playlist)
                             },
@@ -266,7 +277,15 @@ fun MainScreen(
                                 }
                             }
                         )
-                        NavTab.PRIVACY -> PrivacyScreen()
+                        NavTab.PRIVACY -> PrivacyScreen(
+                            onBackToHome = {
+                                selectedTab = NavTab.VIDEO
+                                isPrivacyUnlocked = false
+                            },
+                            onVaultUnlockedChanged = { unlocked ->
+                                isPrivacyUnlocked = unlocked
+                            }
+                        )
                     }
                 }
             }

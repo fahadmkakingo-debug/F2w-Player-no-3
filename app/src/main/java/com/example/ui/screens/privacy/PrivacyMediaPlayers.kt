@@ -114,7 +114,10 @@ fun PrivacyVideoPlayerScreen(
     BackHandler(onBack = onClose)
 
     val context = LocalContext.current
-    val videoFile = remember(item.vaultPath) { File(item.vaultPath) }
+    val vaultManager = remember { com.example.data.security.PrivacyVaultManager.getInstance(context) }
+    val videoFile = remember(item.vaultPath) {
+        vaultManager.getDecryptedTempFile(item) ?: File(item.vaultPath)
+    }
 
     var isPlaying by remember { mutableStateOf(true) }
     var currentPositionMs by remember { mutableLongStateOf(0L) }
@@ -397,7 +400,10 @@ fun PrivacyAudioPlayerDialog(
     onDeletePermanently: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val audioFile = remember(item.vaultPath) { File(item.vaultPath) }
+    val vaultManager = remember { com.example.data.security.PrivacyVaultManager.getInstance(context) }
+    val audioFile = remember(item.vaultPath) {
+        vaultManager.getDecryptedTempFile(item) ?: File(item.vaultPath)
+    }
 
     var isPlaying by remember { mutableStateOf(true) }
     var currentPositionMs by remember { mutableLongStateOf(0L) }
@@ -645,6 +651,12 @@ fun PrivacyImageViewerDialog(
     onRestore: (() -> Unit)? = null,
     onDeletePermanently: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    val vaultManager = remember { com.example.data.security.PrivacyVaultManager.getInstance(context) }
+    val imageFile = remember(item.vaultPath) {
+        vaultManager.getDecryptedTempFile(item) ?: File(item.vaultPath)
+    }
+
     AlertDialog(
         onDismissRequest = onClose,
         containerColor = Color(0xFF0C0F17),
@@ -689,7 +701,7 @@ fun PrivacyImageViewerDialog(
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
-                    model = File(item.vaultPath),
+                    model = imageFile,
                     contentDescription = item.fileName,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize()

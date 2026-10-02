@@ -390,11 +390,14 @@ class PlaylistManager private constructor(private val appContext: Context) {
                     val size = if (sizeCol != -1) cursor.getLong(sizeCol) else 0L
                     val duration = if (durCol != -1) cursor.getLong(durCol) else 0L
 
-                    if (path.isNotBlank() && vaultPaths.contains(path.lowercase())) continue
-
                     val uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
                     val durText = formatDuration(duration)
                     val szText = formatSize(size)
+
+                    if (vaultManager.isPathOrUriInVault(path, "device_vid_$id") ||
+                        vaultManager.isPathOrUriInVault(uri.toString(), "device_vid_$id") ||
+                        vaultManager.isPathOrUriInVault(name)
+                    ) continue
 
                     result.add(
                         PlaylistItemModel(
@@ -470,8 +473,6 @@ class PlaylistManager private constructor(private val appContext: Context) {
                     } else "Unknown Album"
                     val albumId = if (albumIdCol != -1) cursor.getLong(albumIdCol) else 0L
 
-                    if (path.isNotBlank() && vaultPaths.contains(path.lowercase())) continue
-
                     val folderName = try {
                         if (path.isNotBlank()) {
                             File(path).parentFile?.name ?: "Music"
@@ -483,6 +484,11 @@ class PlaylistManager private constructor(private val appContext: Context) {
                     val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
                     val durText = formatDuration(duration)
                     val szText = formatSize(size)
+
+                    if (vaultManager.isPathOrUriInVault(path, "device_audio_$id") ||
+                        vaultManager.isPathOrUriInVault(uri.toString(), "device_audio_$id") ||
+                        vaultManager.isPathOrUriInVault(name)
+                    ) continue
 
                     result.add(
                         PlaylistItemModel(

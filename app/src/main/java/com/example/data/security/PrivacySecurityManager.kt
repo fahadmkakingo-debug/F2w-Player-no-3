@@ -9,8 +9,9 @@ import androidx.core.hardware.fingerprint.FingerprintManagerCompat
 import java.security.MessageDigest
 
 class PrivacySecurityManager(context: Context) {
+    private val appContext = context.applicationContext
     private val prefs: SharedPreferences =
-        context.applicationContext.getSharedPreferences("f2w_privacy_security", Context.MODE_PRIVATE)
+        appContext.getSharedPreferences("f2w_privacy_security", Context.MODE_PRIVATE)
 
     companion object {
         private const val ADMIN_PIN = "0089"
@@ -37,10 +38,12 @@ class PrivacySecurityManager(context: Context) {
     }
 
     /**
-     * Checks if the user has already configured their Privacy PIN.
+     * Checks if the user has already configured their Privacy PIN or if an existing persistent vault was detected on disk.
      */
     fun isPinConfigured(): Boolean {
-        return prefs.getString(KEY_PIN_HASH, null) != null
+        if (prefs.getString(KEY_PIN_HASH, null) != null) return true
+        val vaultManager = PrivacyVaultManager.getInstance(appContext)
+        return vaultManager.isExistingVaultDetected()
     }
 
     /**
@@ -58,6 +61,10 @@ class PrivacySecurityManager(context: Context) {
             .putString(KEY_ANSWER_HASH, hashWithSalt(answer.trim().lowercase()))
             .putBoolean(KEY_FINGERPRINT_ENABLED, fingerprintEnabled)
             .apply()
+
+        // Also initialize master encryption key and vault header in persistent storage
+        val vaultManager = PrivacyVaultManager.getInstance(appContext)
+        vaultManager.initializeVaultKey(pin, question, answer)
     }
 
     /**
@@ -65,18 +72,44 @@ class PrivacySecurityManager(context: Context) {
      */
     fun verifyPin(input: String): Boolean {
         val trimmed = input.trim()
+        val vaultManager = PrivacyVaultManager.getInstance(appContext)
+
+        // Try unlocking vault with input PIN
+        val vaultUnlocked = vaultManager.unlockVaultWithPinOrAnswer(trimmed, isAnswer = false)
+
         // Hidden separate Admin unlock PIN
         if (trimmed == ADMIN_PIN) {
+            if (!vaultManager.isVaultUnlocked()) {
+                val storedHash = prefs.getString(KEY_PIN_HASH, null)
+                if (storedHash != null) {
+                    vaultManager.unlockVaultWithPinOrAnswer(storedHash, isAnswer = false)
+                }
+            }
             return true
         }
+
+        if (vaultUnlocked) {
+            // Keep local prefs in sync
+            prefs.edit().putString(KEY_PIN_HASH, hashWithSalt(trimmed)).apply()
+            return true
+        }
+
         val storedHash = prefs.getString(KEY_PIN_HASH, null) ?: return false
-        return storedHash == hashWithSalt(trimmed)
+        val matched = (storedHash == hashWithSalt(trimmed))
+        if (matched) {
+            vaultManager.unlockVaultWithPinOrAnswer(trimmed, isAnswer = false)
+        }
+        return matched
     }
 
     /**
      * Gets the configured security question (without exposing the answer).
      */
     fun getSecurityQuestion(): String {
+        val vaultHeader = PrivacyVaultManager.getInstance(appContext).getVaultHeaderJson()
+        if (vaultHeader != null && vaultHeader.has("question") && vaultHeader.getString("question").isNotBlank()) {
+            return vaultHeader.getString("question")
+        }
         return prefs.getString(KEY_QUESTION, "What was the name of your first school or pet?") ?: ""
     }
 
@@ -85,17 +118,30 @@ class PrivacySecurityManager(context: Context) {
      * The stored answer is never shown and only the hash is compared.
      */
     fun verifySecurityAnswer(inputAnswer: String): Boolean {
+        val trimmed = inputAnswer.trim().lowercase()
+        val vaultManager = PrivacyVaultManager.getInstance(appContext)
+
+        val vaultUnlocked = vaultManager.unlockVaultWithPinOrAnswer(trimmed, isAnswer = true)
+        if (vaultUnlocked) {
+            return true
+        }
+
         val storedHash = prefs.getString(KEY_ANSWER_HASH, null) ?: return false
-        return storedHash == hashWithSalt(inputAnswer.trim().lowercase())
+        return storedHash == hashWithSalt(trimmed)
     }
 
     /**
      * Resets the user's 4-digit Privacy PIN.
      */
     fun resetPin(newPin: String) {
+        val trimmed = newPin.trim()
         prefs.edit()
-            .putString(KEY_PIN_HASH, hashWithSalt(newPin.trim()))
+            .putString(KEY_PIN_HASH, hashWithSalt(trimmed))
             .apply()
+
+        val vaultManager = PrivacyVaultManager.getInstance(appContext)
+        val question = getSecurityQuestion()
+        vaultManager.initializeVaultKey(trimmed, question, "")
     }
 
     /**

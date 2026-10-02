@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GridView
@@ -57,6 +58,7 @@ fun F2WTopBar(
     onThemeClick: () -> Unit = {},
     onRefreshClick: () -> Unit = {},
     onEqualiserClick: () -> Unit = {},
+    onSortClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -285,6 +287,31 @@ fun F2WTopBar(
                                 onEqualiserClick()
                             },
                             modifier = Modifier.testTag("menu_item_equaliser")
+                        )
+
+                        // 4. Sort By
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Sort By",
+                                    color = textPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Sort,
+                                    contentDescription = "Sort By",
+                                    tint = primaryColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            onClick = {
+                                menuExpanded = false
+                                onSortClick()
+                            },
+                            modifier = Modifier.testTag("menu_item_sort")
                         )
 
                         // 4. Settings

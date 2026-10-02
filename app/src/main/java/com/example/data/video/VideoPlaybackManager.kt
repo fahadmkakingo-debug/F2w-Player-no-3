@@ -94,6 +94,26 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
         } else {
             _isBackgroundAudioEnabled.value = false
         }
+
+        // Listen for Privacy Vault updates to purge private items from video playback queue
+        scope.launch {
+            val vaultManager = com.example.data.security.PrivacyVaultManager.getInstance(appContext)
+            vaultManager.vaultUpdates.collect {
+                val current = _currentVideo.value
+                if (current != null && (vaultManager.isPathOrUriInVault(current.uriString, current.id) || vaultManager.isPathOrUriInVault(current.title))) {
+                    stopPlayback()
+                    android.widget.Toast.makeText(
+                        appContext,
+                        "Video hii imehamishwa kwenye Privacy Vault.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+
+                _playlist.value = _playlist.value.filter {
+                    !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+                }
+            }
+        }
     }
 
     fun releasePlayer() {
@@ -222,11 +242,27 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
         newPlaylist: List<VideoItem> = listOf(video),
         startPositionMs: Long? = null
     ) {
+        val vaultManager = com.example.data.security.PrivacyVaultManager.getInstance(appContext)
+        if (vaultManager.isPathOrUriInVault(video.uriString, video.id) || vaultManager.isPathOrUriInVault(video.title)) {
+            android.widget.Toast.makeText(
+                appContext,
+                "Faili hii ipo kwenye Privacy Vault. Fungua kupitia sehemu ya Privacy.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            stopPlayback()
+            return
+        }
+
+        // Filter playlist to exclude any private vault items
+        val sanitizedPlaylist = (if (newPlaylist.isNotEmpty()) newPlaylist else listOf(video)).filter {
+            !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+        }
+
         // Pause audio playback if currently active
         AudioPlaybackManager.getInstance(appContext).pause()
 
         _currentVideo.value = video
-        _playlist.value = if (newPlaylist.isNotEmpty()) newPlaylist else listOf(video)
+        _playlist.value = if (sanitizedPlaylist.isNotEmpty()) sanitizedPlaylist else listOf(video)
         _currentIndex.value = _playlist.value.indexOfFirst { it.id == video.id }.coerceAtLeast(0)
 
         // Release any existing player to ensure a pristine player instance and clean surface attachment

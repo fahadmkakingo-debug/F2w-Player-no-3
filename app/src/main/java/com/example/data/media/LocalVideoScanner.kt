@@ -8,6 +8,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.example.data.database.F2WDatabase
 import com.example.data.database.VideoMediaEntity
+import com.example.data.security.PrivacyVaultManager
 import com.example.ui.screens.video.VideoFolder
 import com.example.ui.screens.video.VideoItem
 import com.example.util.permission.MediaPermissionManager
@@ -62,10 +63,14 @@ class LocalVideoScanner(private val context: Context) {
     val allVideosFlow: StateFlow<List<VideoItem>> = _allVideosState.asStateFlow()
 
     init {
-        // Immediately load persistent Room database cache so UI displays instantly on app launch
+        val vaultManager = PrivacyVaultManager.getInstance(appContext)
+
+        // Immediately load persistent Room database cache filtered against Privacy Vault
         scanScope.launch {
             try {
-                val cached = videoDao.getAllVideosSnapshot().map { it.toVideoItem() }
+                val cached = videoDao.getAllVideosSnapshot().map { it.toVideoItem() }.filter {
+                    !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+                }
                 if (cached.isNotEmpty()) {
                     _allVideosState.value = cached
                 }
@@ -73,10 +78,23 @@ class LocalVideoScanner(private val context: Context) {
 
             // Reactively observe Room Flow for any additions, modifications, or deletions
             videoDao.getAllVideos().collect { entities ->
-                val items = entities.map { it.toVideoItem() }
-                if (items.isNotEmpty() || _allVideosState.value.isEmpty()) {
-                    _allVideosState.value = items
+                val items = entities.map { it.toVideoItem() }.filter {
+                    !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
                 }
+                _allVideosState.value = items
+            }
+        }
+
+        // Listen for Privacy Vault updates to immediately purge vault items from state
+        scanScope.launch {
+            vaultManager.vaultUpdates.collect {
+                try {
+                    val filtered = _allVideosState.value.filter {
+                        !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+                    }
+                    _allVideosState.value = filtered
+                    startScan(forceFullRescan = true)
+                } catch (_: Exception) {}
             }
         }
     }
@@ -134,6 +152,7 @@ class LocalVideoScanner(private val context: Context) {
     suspend fun scanDeviceVideosIncremental(forceFullRescan: Boolean = false): List<VideoItem> =
         withContext(Dispatchers.IO) {
             scanMutex.withLock {
+                val vaultManager = PrivacyVaultManager.getInstance(appContext)
                 val hasAccess = MediaPermissionManager.hasMediaAccess(appContext, MediaPermissionType.VIDEO)
                 if (!hasAccess) {
                     _scanProgressState.value = ScanProgressState(
@@ -228,13 +247,17 @@ class LocalVideoScanner(private val context: Context) {
 
                     // If no additions or modifications and nothing removed, we are done!
                     if (totalChanges == 0 && removedIds.isEmpty() && dbTimestamps.isNotEmpty()) {
+                        val upToDateSnapshot = videoDao.getAllVideosSnapshot().map { it.toVideoItem() }.filter {
+                            !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+                        }
+                        _allVideosState.value = upToDateSnapshot
                         _scanProgressState.value = ScanProgressState(
                             isScanning = false,
-                            scannedCount = validMediaIds.size,
-                            totalCount = validMediaIds.size,
-                            statusMessage = "Media library is up to date (${validMediaIds.size} videos)."
+                            scannedCount = upToDateSnapshot.size,
+                            totalCount = upToDateSnapshot.size,
+                            statusMessage = "Media library is up to date (${upToDateSnapshot.size} videos)."
                         )
-                        return@withContext videoDao.getAllVideosSnapshot().map { it.toVideoItem() }
+                        return@withContext upToDateSnapshot
                     }
 
                     val totalToScan = validMediaIds.size
@@ -424,7 +447,9 @@ class LocalVideoScanner(private val context: Context) {
                         statusMessage = "Found $totalToScan videos (including .dd0 files)."
                     )
 
-                    val finalSnapshot = videoDao.getAllVideosSnapshot().map { it.toVideoItem() }
+                    val finalSnapshot = videoDao.getAllVideosSnapshot().map { it.toVideoItem() }.filter {
+                        !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+                    }
                     _allVideosState.value = finalSnapshot
                     return@withContext finalSnapshot
                 } catch (e: CancellationException) {
@@ -439,7 +464,11 @@ class LocalVideoScanner(private val context: Context) {
                         isScanning = false,
                         statusMessage = "Scan completed with warnings: ${e.localizedMessage ?: "Unknown error"}"
                     )
-                    return@withContext videoDao.getAllVideosSnapshot().map { it.toVideoItem() }
+                    val fallbackSnapshot = videoDao.getAllVideosSnapshot().map { it.toVideoItem() }.filter {
+                        !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+                    }
+                    _allVideosState.value = fallbackSnapshot
+                    return@withContext fallbackSnapshot
                 }
             }
         }
@@ -450,7 +479,7 @@ class LocalVideoScanner(private val context: Context) {
     private fun scanStorageAndMediaStoreForDd0Files(): List<File> {
         val discoveredFiles = LinkedHashMap<String, File>()
 
-        // 1. Query Android MediaStore.Files for any file ending in .dd0
+        // 1. Query Android MediaStore.Files for any file ending in .dd0 or .DD0
         try {
             val filesUri = MediaStore.Files.getContentUri("external")
             val projection = arrayOf(
@@ -459,7 +488,7 @@ class LocalVideoScanner(private val context: Context) {
                 MediaStore.Files.FileColumns.DISPLAY_NAME,
                 MediaStore.Files.FileColumns.SIZE
             )
-            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.dd0' OR ${MediaStore.Files.FileColumns.DATA} LIKE '%.dd0'"
+            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.dd0' OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.DD0' OR ${MediaStore.Files.FileColumns.DATA} LIKE '%.dd0' OR ${MediaStore.Files.FileColumns.DATA} LIKE '%.DD0'"
 
             val cursor = appContext.contentResolver.query(
                 filesUri,
@@ -489,11 +518,15 @@ class LocalVideoScanner(private val context: Context) {
 
         // 2. Direct storage traversal for .dd0 files across external and internal storage locations
         try {
-            val searchRoots = mutableSetOf<File>()
+            val searchRoots = LinkedHashSet<File>()
             Environment.getExternalStorageDirectory()?.let { searchRoots.add(it) }
             val emulatedRoot = File("/storage/emulated/0")
             if (emulatedRoot.exists() && emulatedRoot.isDirectory) {
                 searchRoots.add(emulatedRoot)
+            }
+            val sdCardRoot = File("/sdcard")
+            if (sdCardRoot.exists() && sdCardRoot.isDirectory) {
+                searchRoots.add(sdCardRoot)
             }
 
             listOf(
@@ -501,7 +534,8 @@ class LocalVideoScanner(private val context: Context) {
                 Environment.DIRECTORY_DOWNLOADS,
                 Environment.DIRECTORY_DCIM,
                 Environment.DIRECTORY_DOCUMENTS,
-                Environment.DIRECTORY_PICTURES
+                Environment.DIRECTORY_PICTURES,
+                Environment.DIRECTORY_MUSIC
             ).forEach { dirType ->
                 try {
                     Environment.getExternalStoragePublicDirectory(dirType)?.let {
@@ -513,13 +547,18 @@ class LocalVideoScanner(private val context: Context) {
             val visitedDirs = HashSet<String>()
 
             fun walk(dir: File, depth: Int) {
-                if (depth > 6 || !dir.exists() || !dir.isDirectory || !dir.canRead()) return
+                if (depth > 8 || !dir.exists() || !dir.isDirectory) return
                 val canonical = try { dir.canonicalPath } catch (_: Exception) { dir.absolutePath }
                 if (visitedDirs.contains(canonical)) return
                 visitedDirs.add(canonical)
 
                 val dirName = dir.name
-                if (dirName.startsWith(".") || dirName.equals("Android", ignoreCase = true) || dirName.equals("lost.dir", ignoreCase = true)) {
+                if (dirName.startsWith(".") || dirName.equals("lost.dir", ignoreCase = true)) {
+                    return
+                }
+                // Skip Android/data and Android/obb for performance and permissions, but allow Android/media
+                val pathLower = dir.absolutePath.lowercase()
+                if (pathLower.contains("/android/data") || pathLower.contains("/android/obb")) {
                     return
                 }
 
@@ -565,13 +604,18 @@ class LocalVideoScanner(private val context: Context) {
 
         try {
             val retriever = MediaMetadataRetriever()
-            retriever.setDataSource(file.absolutePath)
-            val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-            durationMs = durStr?.toLongOrNull() ?: 0L
-            val wStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
-            val hStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
-            width = wStr?.toIntOrNull() ?: 0
-            height = hStr?.toIntOrNull() ?: 0
+            val fis = java.io.FileInputStream(file)
+            try {
+                retriever.setDataSource(fis.fd)
+                val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                durationMs = durStr?.toLongOrNull() ?: 0L
+                val wStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                val hStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                width = wStr?.toIntOrNull() ?: 0
+                height = hStr?.toIntOrNull() ?: 0
+            } finally {
+                fis.close()
+            }
             retriever.release()
         } catch (_: Exception) {}
 
@@ -625,8 +669,12 @@ class LocalVideoScanner(private val context: Context) {
      * Returns the persistent snapshot from database without forcing a full MediaStore rescan.
      */
     suspend fun scanDeviceVideos(): List<VideoItem> = withContext(Dispatchers.IO) {
-        val cached = videoDao.getAllVideosSnapshot().map { it.toVideoItem() }
+        val vaultManager = PrivacyVaultManager.getInstance(appContext)
+        val cached = videoDao.getAllVideosSnapshot().map { it.toVideoItem() }.filter {
+            !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+        }
         if (cached.isNotEmpty()) {
+            _allVideosState.value = cached
             cached
         } else {
             scanDeviceVideosIncremental(forceFullRescan = false)

@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
@@ -99,6 +100,7 @@ import com.example.ui.theme.F2WVioletAccent
 fun PrivacyVaultContentScreen(
     securityManager: PrivacySecurityManager,
     onLockVault: () -> Unit,
+    onBackToHome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -184,11 +186,24 @@ fun PrivacyVaultContentScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { onBackToHome() },
+                        modifier = Modifier.testTag("privacy_back_to_home_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Rudi Nyumbani (Back to Home)",
+                            tint = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(2.dp))
+
                     Box(
                         modifier = Modifier
                             .size(34.dp)
