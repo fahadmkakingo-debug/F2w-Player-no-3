@@ -387,7 +387,14 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
 
     fun closeFullScreen() {
         _isFullScreenOpen.value = false
-        stopPlayback()
+        if (_isBackgroundAudioEnabled.value && _currentVideo.value != null) {
+            _isMiniPlayerVisible.value = true
+            if (_isPlaying.value) {
+                VideoPlaybackService.start(appContext)
+            }
+        } else {
+            stopPlayback()
+        }
     }
 
     fun dismissMiniPlayer() {

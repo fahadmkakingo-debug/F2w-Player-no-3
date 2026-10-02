@@ -86,4 +86,30 @@ class VideoPlaybackLifecycleTest {
         assertEquals("Video 1", manager.currentVideo.value?.title)
         assertTrue(manager.isFullScreenOpen.value)
     }
+
+    @Test
+    fun testBackgroundAudioPersistence_WhenGoingBack() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val manager = VideoPlaybackManager.getInstance(context)
+
+        val video = createTestVideo("5", "Sample Background Video")
+        manager.setBackgroundAudioEnabled(true)
+        manager.playVideo(video)
+
+        assertTrue(manager.isFullScreenOpen.value)
+        assertEquals("Sample Background Video", manager.currentVideo.value?.title)
+
+        // User goes back while background audio is ENABLED
+        manager.closeFullScreen()
+
+        // Fullscreen closes, but video and mini player remain active!
+        assertFalse(manager.isFullScreenOpen.value)
+        assertEquals("Sample Background Video", manager.currentVideo.value?.title)
+        assertTrue(manager.isMiniPlayerVisible.value)
+
+        // Dismissing mini player stops playback
+        manager.dismissMiniPlayer()
+        assertNull(manager.currentVideo.value)
+        assertFalse(manager.isMiniPlayerVisible.value)
+    }
 }
