@@ -123,6 +123,22 @@ fun AudioScreen(
     val currentTrack by audioManager.currentTrack.collectAsState()
     val isAudioPlaying by audioManager.isPlaying.collectAsState()
 
+    val notifPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { /* Permission response handled */ }
+
+    LaunchedEffect(Unit) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
     var selectedTab by remember { mutableStateOf(AudioTab.SONGS) }
     var audioTracks by remember { mutableStateOf<List<PlaylistItemModel>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }

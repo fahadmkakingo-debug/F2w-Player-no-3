@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +45,7 @@ import com.example.ui.screens.theme.ThemePickerScreen
 import com.example.ui.screens.video.VideoItem
 import com.example.ui.screens.video.VideoScreen
 import com.example.ui.screens.video.VideoSearchOverlayScreen
+import com.example.ui.screens.welcome.WelcomeScreen
 import com.example.ui.theme.F2WBackground
 import com.example.util.permission.MediaPermissionManager
 import com.example.util.permission.MediaPermissionType
@@ -71,28 +73,49 @@ fun MainScreen(
         scanner.startScan(forceFullRescan = false)
     }
 
+    var showWelcomeScreen by rememberSaveable { mutableStateOf(true) }
+
+    // Start background sync immediately if permission already granted
     LaunchedEffect(Unit) {
-        val prefs = context.getSharedPreferences("f2w_app_prefs", Context.MODE_PRIVATE)
-        val hasRequestedBefore = prefs.getBoolean("has_prompted_media_permissions", false)
-        val hasAccess = MediaPermissionManager.hasMediaAccess(context, MediaPermissionType.ALL_MEDIA)
-        if (!hasAccess && !hasRequestedBefore) {
-            prefs.edit().putBoolean("has_prompted_media_permissions", true).apply()
-            val required = MediaPermissionManager.getRequiredPermissions(MediaPermissionType.ALL_MEDIA)
-            permissionLauncher.launch(required)
-        } else if (hasAccess) {
-            // Lightweight background sync - retains cached videos while checking MediaStore diff
+        if (MediaPermissionManager.hasMediaAccess(context, MediaPermissionType.ALL_MEDIA)) {
             scanner.startScan(forceFullRescan = false)
         }
+    }
+
+    // When welcome screen finishes, prompt for permission if it's the very first launch
+    LaunchedEffect(showWelcomeScreen) {
+        if (!showWelcomeScreen) {
+            val prefs = context.getSharedPreferences("f2w_app_prefs", Context.MODE_PRIVATE)
+            val hasRequestedBefore = prefs.getBoolean("has_prompted_media_permissions", false)
+            val hasAccess = MediaPermissionManager.hasMediaAccess(context, MediaPermissionType.ALL_MEDIA)
+            if (!hasAccess && !hasRequestedBefore) {
+                prefs.edit().putBoolean("has_prompted_media_permissions", true).apply()
+                val required = MediaPermissionManager.getRequiredPermissions(MediaPermissionType.ALL_MEDIA)
+                permissionLauncher.launch(required)
+            } else if (hasAccess) {
+                scanner.startScan(forceFullRescan = false)
+            }
+        }
+    }
+
+    // Welcome Screen with Dramatic Overhead Spotlight Beam
+    if (showWelcomeScreen) {
+        WelcomeScreen(
+            onContinue = { showWelcomeScreen = false }
+        )
+        return
     }
 
     var selectedTab by remember { mutableStateOf(NavTab.VIDEO) }
     var showSearchDialog by remember { mutableStateOf(false) }
     var showSettingsPage by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
+    var showEqualizerScreen by remember { mutableStateOf(false) }
     var isListView by remember { mutableStateOf(false) }
-    var activePlayingVideo by remember { mutableStateOf<VideoItem?>(null) }
-    var currentVideoPlaylist by remember { mutableStateOf<List<VideoItem>>(emptyList()) }
-    var isFloatingMiniPlayer by remember { mutableStateOf(false) }
+
+    val videoManager = remember { com.example.data.video.VideoPlaybackManager.getInstance(context) }
+    val currentPlayingVideo by videoManager.currentVideo.collectAsState()
+    val isFullScreenVideoOpen by videoManager.isFullScreenOpen.collectAsState()
 
     val audioManager = remember { com.example.data.audio.AudioPlaybackManager.getInstance(context) }
     val isFullScreenAudioOpen by audioManager.isFullScreenOpen.collectAsState()
@@ -108,23 +131,23 @@ fun MainScreen(
         return
     }
 
-    // Fullscreen XPlayer when a video is clicked and not in mini-player mode
-    if (activePlayingVideo != null && (!isFloatingMiniPlayer || isInPipMode)) {
-        val playerQueue = if (currentVideoPlaylist.isNotEmpty()) currentVideoPlaylist else allScannedVideos
+    // Fullscreen XPlayer when a video is clicked or restored
+    if (isFullScreenVideoOpen && currentPlayingVideo != null) {
+        val playerQueue = if (videoManager.playlist.value.isNotEmpty()) videoManager.playlist.value else allScannedVideos
         XVideoPlayerScreen(
-            video = activePlayingVideo!!,
+            video = currentPlayingVideo!!,
             allVideos = playerQueue,
             isInPipMode = isInPipMode,
             onRequestPip = {
                 onRequestPip()
-                isFloatingMiniPlayer = true
             },
             onToggleOrientation = onToggleOrientation,
             onBack = {
-                activePlayingVideo = null
-                isFloatingMiniPlayer = false
+                videoManager.closeFullScreen()
             },
-            onVideoChange = { activePlayingVideo = it }
+            onVideoChange = { nextVideo ->
+                videoManager.playVideo(nextVideo, playerQueue)
+            }
         )
         return
     }
@@ -139,6 +162,13 @@ fun MainScreen(
     if (showSettingsPage) {
         SettingsScreen(
             onBack = { showSettingsPage = false }
+        )
+        return
+    }
+
+    if (showEqualizerScreen) {
+        com.example.ui.screens.equalizer.EqualizerScreen(
+            onBack = { showEqualizerScreen = false }
         )
         return
     }
@@ -174,9 +204,7 @@ fun MainScreen(
                         }
                     },
                     onEqualiserClick = {
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Equaliser: Audio enhancements ready")
-                        }
+                        showEqualizerScreen = true
                     },
                     onSettingsClick = { showSettingsPage = true }
                 )
@@ -187,6 +215,10 @@ fun MainScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                com.example.ui.screens.video.VideoMiniPlayerBar(
+                    videoManager = videoManager,
+                    onExpand = { videoManager.openFullScreen() }
+                )
                 com.example.ui.screens.audio.AudioMiniPlayerBar(
                     audioManager = audioManager,
                     onExpand = { audioManager.openFullScreen() },
@@ -224,8 +256,7 @@ fun MainScreen(
                         isListView = isListView,
                         onToggleViewMode = { isListView = !isListView },
                         onVideoClick = { clickedVideo, playlist ->
-                            currentVideoPlaylist = playlist
-                            activePlayingVideo = clickedVideo
+                            videoManager.playVideo(clickedVideo, playlist)
                         }
                     )
                     NavTab.AUDIO -> AudioScreen(
@@ -237,27 +268,14 @@ fun MainScreen(
                     )
                     NavTab.PLAYLIST -> PlaylistScreen(
                         onPlayVideoPlaylist = { playlistVideos, startIndex ->
-                            currentVideoPlaylist = playlistVideos
-                            activePlayingVideo = playlistVideos.getOrNull(startIndex) ?: playlistVideos.firstOrNull()
+                            val startVideo = playlistVideos.getOrNull(startIndex) ?: playlistVideos.firstOrNull()
+                            if (startVideo != null) {
+                                videoManager.playVideo(startVideo, playlistVideos)
+                            }
                         }
                     )
                     NavTab.PRIVACY -> PrivacyScreen()
                 }
-            }
-
-            // In-App Floating Mini-Player when minimized
-            if (activePlayingVideo != null && isFloatingMiniPlayer) {
-                InAppFloatingPlayer(
-                    video = activePlayingVideo!!,
-                    onExpand = { isFloatingMiniPlayer = false },
-                    onClose = {
-                        activePlayingVideo = null
-                        isFloatingMiniPlayer = false
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(bottom = 12.dp, end = 16.dp)
-                )
             }
         }
     }
@@ -268,8 +286,7 @@ fun MainScreen(
             allVideos = allScannedVideos,
             onBack = { showSearchDialog = false },
             onVideoClick = { clickedVideo ->
-                currentVideoPlaylist = allScannedVideos
-                activePlayingVideo = clickedVideo
+                videoManager.playVideo(clickedVideo, allScannedVideos)
                 showSearchDialog = false
             }
         )

@@ -74,7 +74,7 @@ fun F2WTopBar(
             .fillMaxWidth()
             .statusBarsPadding()
             .background(surfaceColor)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 12.dp, vertical = 3.dp)
             .testTag("f2w_top_bar")
     ) {
         Row(
@@ -89,14 +89,14 @@ fun F2WTopBar(
                 // F2W Square Badge with Rounded Corners and Theme Glow
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
+                        .size(32.dp)
                         .shadow(
-                            elevation = 12.dp,
-                            shape = RoundedCornerShape(14.dp),
+                            elevation = 6.dp,
+                            shape = RoundedCornerShape(9.dp),
                             spotColor = primaryColor,
                             ambientColor = primaryColor
                         )
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(9.dp))
                         .background(primaryColor),
                     contentAlignment = Alignment.Center
                 ) {
@@ -104,24 +104,24 @@ fun F2WTopBar(
                         text = "F2W",
                         color = Color.White,
                         fontWeight = FontWeight.Black,
-                        fontSize = 15.sp,
-                        letterSpacing = 0.5.sp
+                        fontSize = 12.sp,
+                        letterSpacing = 0.4.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Column {
                     Text(
                         text = "F2W Player",
                         color = textPrimary,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 19.sp
+                        fontSize = 15.sp
                     )
                     Text(
                         text = subtitle.ifBlank { "Local Media Player" },
                         color = textSecondary,
-                        fontSize = 12.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -130,18 +130,18 @@ fun F2WTopBar(
             // Right: Rounded Grid/List, Search & More Options Buttons with Popup Menu
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 // View Mode Toggle Button (Grid vs List) right beside search
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(9.dp))
                         .background(if (isListView) primaryColor.copy(alpha = 0.18f) else elevatedColor)
                         .border(
                             1.dp,
                             if (isListView) primaryColor else borderColor,
-                            RoundedCornerShape(14.dp)
+                            RoundedCornerShape(9.dp)
                         )
                         .clickable(onClick = onToggleViewMode)
                         .testTag("view_mode_toggle_button"),
@@ -151,17 +151,17 @@ fun F2WTopBar(
                         imageVector = if (isListView) Icons.Filled.GridView else Icons.AutoMirrored.Filled.ViewList,
                         contentDescription = if (isListView) "Badili Gridi" else "Badili Orodha (List)",
                         tint = if (isListView) primaryColor else textPrimary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
                 // Search Button
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(9.dp))
                         .background(elevatedColor)
-                        .border(1.dp, borderColor, RoundedCornerShape(14.dp))
+                        .border(1.dp, borderColor, RoundedCornerShape(9.dp))
                         .clickable(onClick = onSearchClick)
                         .testTag("search_button"),
                     contentAlignment = Alignment.Center
@@ -170,20 +170,20 @@ fun F2WTopBar(
                         imageVector = Icons.Outlined.Search,
                         contentDescription = "Search",
                         tint = textPrimary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
                 // More Options Button (Three Vertical Dots) with Dropdown Anchor
                 Box(
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(9.dp))
                             .background(elevatedColor)
-                            .border(1.dp, borderColor, RoundedCornerShape(14.dp))
+                            .border(1.dp, borderColor, RoundedCornerShape(9.dp))
                             .clickable { menuExpanded = true }
                             .testTag("three_dot_menu_button"),
                         contentAlignment = Alignment.Center
@@ -192,7 +192,7 @@ fun F2WTopBar(
                             imageVector = Icons.Outlined.MoreVert,
                             contentDescription = "Options",
                             tint = textPrimary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
 

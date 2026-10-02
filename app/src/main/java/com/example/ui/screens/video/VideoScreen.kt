@@ -232,12 +232,12 @@ fun VideoScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(F2WSurface)
-                .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 6.dp)
+                .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 2.dp)
         ) {
             // Row 1: [ All Video ] [ Group by Name ] [ Group by Folder ]
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FilterPillButton(
@@ -266,12 +266,12 @@ fun VideoScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             // Row 2: [ Recently Added ] [ Recently Played ]
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FilterPillButton(
@@ -292,11 +292,11 @@ fun VideoScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             HorizontalDivider(
-                color = F2WCardBorder,
-                thickness = 1.dp
+                color = F2WCardBorder.copy(alpha = 0.6f),
+                thickness = 0.8.dp
             )
         }
 
@@ -318,10 +318,10 @@ fun VideoScreen(
                 .fillMaxWidth()
                 .weight(1f),
             contentPadding = PaddingValues(
-                start = 14.dp,
-                end = 14.dp,
-                top = 6.dp,
-                bottom = 16.dp
+                start = 12.dp,
+                end = 12.dp,
+                top = 2.dp,
+                bottom = 12.dp
             ),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -331,7 +331,7 @@ fun VideoScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp, bottom = 4.dp),
+                        .padding(top = 2.dp, bottom = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -346,7 +346,7 @@ fun VideoScreen(
                         style = MaterialTheme.typography.titleSmall.copy(
                             color = F2WTextPrimary,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 12.5.sp
                         )
                     )
 
@@ -604,17 +604,17 @@ private fun FilterPillButton(
 
     Box(
         modifier = modifier
-            .height(34.dp)
-            .clip(RoundedCornerShape(17.dp))
+            .height(26.dp)
+            .clip(RoundedCornerShape(13.dp))
             .background(backgroundColor)
-            .border(1.dp, borderColor, RoundedCornerShape(17.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(13.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(color = Color.White),
                 onClick = onClick
             )
             .testTag(mode.testTag)
-            .padding(horizontal = 9.dp),
+            .padding(horizontal = 7.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -626,15 +626,15 @@ private fun FilterPillButton(
                     modifier = Modifier
                         .clip(RoundedCornerShape(3.dp))
                         .background(if (isSelected) Color.White.copy(alpha = 0.28f) else Color(0xFF133B47))
-                        .padding(horizontal = 3.dp, vertical = 1.dp),
+                        .padding(horizontal = 2.5.dp, vertical = 0.5.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "NEW",
                         color = contentColor,
-                        fontSize = 8.5.sp,
+                        fontSize = 7.5.sp,
                         fontWeight = FontWeight.Black,
-                        letterSpacing = 0.3.sp
+                        letterSpacing = 0.2.sp
                     )
                 }
             } else {
@@ -642,16 +642,16 @@ private fun FilterPillButton(
                     imageVector = mode.icon,
                     contentDescription = mode.label,
                     tint = contentColor,
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(12.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(5.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
             Text(
                 text = mode.label,
                 color = contentColor,
-                fontSize = 11.5.sp,
+                fontSize = 10.5.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 maxLines = 1
             )

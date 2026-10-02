@@ -958,3 +958,248 @@ fun PlaylistQueueBottomSheet(
         )
     }
 }
+
+@Composable
+fun EqualizerDialog(
+    onDismissRequest: () -> Unit
+) {
+    var isEnabled by remember { mutableStateOf(true) }
+    var volumeBoost by remember { mutableFloatStateOf(100f) } // 100% - 200%
+    var bassBoost by remember { mutableFloatStateOf(60f) } // 0 - 100%
+    var virtualizer by remember { mutableFloatStateOf(45f) } // 0 - 100%
+    var selectedPreset by remember { mutableStateOf("Bass Boost") }
+
+    val presets = listOf("Normal", "Bass Boost", "Vocal", "Rock", "Pop", "Movie", "Classical", "Hip Hop")
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        containerColor = Color(0xFF1E1F22),
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.GraphicEq,
+                        contentDescription = null,
+                        tint = F2WCyanPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Equalizer & Bass",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
+                Switch(
+                    checked = isEnabled,
+                    onCheckedChange = { isEnabled = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = F2WCyanPrimary
+                    )
+                )
+            }
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Volume Booster (100% to 200%)
+                item {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Volume Booster", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                            Text("${volumeBoost.toInt()}%", color = F2WCyanPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = volumeBoost,
+                            onValueChange = { volumeBoost = it },
+                            valueRange = 100f..200f,
+                            enabled = isEnabled,
+                            colors = SliderDefaults.colors(
+                                thumbColor = F2WCyanPrimary,
+                                activeTrackColor = F2WCyanPrimary
+                            )
+                        )
+                    }
+                }
+
+                // Bass Boost
+                item {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Bass Boost", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                            Text("${bassBoost.toInt()}%", color = F2WCyanPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = bassBoost,
+                            onValueChange = { bassBoost = it },
+                            valueRange = 0f..100f,
+                            enabled = isEnabled,
+                            colors = SliderDefaults.colors(
+                                thumbColor = F2WCyanPrimary,
+                                activeTrackColor = F2WCyanPrimary
+                            )
+                        )
+                    }
+                }
+
+                // Virtualizer / 3D Surround
+                item {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("3D Virtualizer / Surround", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                            Text("${virtualizer.toInt()}%", color = F2WCyanPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = virtualizer,
+                            onValueChange = { virtualizer = it },
+                            valueRange = 0f..100f,
+                            enabled = isEnabled,
+                            colors = SliderDefaults.colors(
+                                thumbColor = F2WCyanPrimary,
+                                activeTrackColor = F2WCyanPrimary
+                            )
+                        )
+                    }
+                }
+
+                // Sound Presets
+                item {
+                    Text(
+                        text = "Vipimo Maalum (Presets):",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val chunked = presets.chunked(4)
+                        chunked.forEach { rowPresets ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                rowPresets.forEach { preset ->
+                                    val isSelected = preset == selectedPreset
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isSelected) F2WCyanPrimary else Color(0xFF262930))
+                                            .clickable(enabled = isEnabled) { selectedPreset = preset }
+                                            .padding(vertical = 7.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = preset,
+                                            color = if (isSelected) Color.Black else Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text("Imekamilika", color = F2WCyanPrimary, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+
+@Composable
+fun AudioTrackSelectionDialog(
+    availableTracks: List<String>,
+    selectedTrack: String,
+    onTrackSelected: (String) -> Unit,
+    onDismissRequest: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        containerColor = Color(0xFF1E1F22),
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Audiotrack,
+                    contentDescription = null,
+                    tint = F2WCyanPrimary,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Lugha ya Sauti (Audio Track)",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                itemsIndexed(availableTracks) { _, track ->
+                    val isSelected = track == selectedTrack
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSelected) F2WCyanPrimary.copy(alpha = 0.15f) else Color.Transparent)
+                            .clickable {
+                                onTrackSelected(track)
+                                onDismissRequest()
+                            }
+                            .padding(horizontal = 10.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = isSelected,
+                            onClick = {
+                                onTrackSelected(track)
+                                onDismissRequest()
+                            },
+                            colors = RadioButtonDefaults.colors(selectedColor = F2WCyanPrimary)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = track,
+                            color = if (isSelected) Color.White else Color(0xFF949BA4),
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 14.5.sp
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text("Funga", color = F2WCyanPrimary)
+            }
+        }
+    )
+}
+

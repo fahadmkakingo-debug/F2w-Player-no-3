@@ -111,10 +111,10 @@ class AudioPlaybackManager private constructor(private val appContext: Context) 
                         _isPlaying.value = playing
                         if (playing) {
                             startProgressUpdates()
+                            com.example.service.AudioPlaybackService.start(appContext)
                         } else {
                             stopProgressUpdates()
                         }
-                        updateNotification()
                     }
 
                     override fun onPlaybackStateChanged(state: Int) {
@@ -123,9 +123,18 @@ class AudioPlaybackManager private constructor(private val appContext: Context) 
                             val dur = duration.coerceAtLeast(1L)
                             _durationMs.value = dur
                             _currentPositionMs.value = currentPosition
-                            updateNotification()
+                            val sessionId = audioSessionId
+                            if (sessionId != C.AUDIO_SESSION_ID_UNSET && sessionId != 0) {
+                                EqualizerManager.getInstance(appContext).bindAudioSession(sessionId)
+                            }
                         } else if (state == Player.STATE_ENDED) {
                             handleTrackEnded()
+                        }
+                    }
+
+                    override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                        if (audioSessionId != C.AUDIO_SESSION_ID_UNSET && audioSessionId != 0) {
+                            EqualizerManager.getInstance(appContext).bindAudioSession(audioSessionId)
                         }
                     }
 
@@ -168,7 +177,6 @@ class AudioPlaybackManager private constructor(private val appContext: Context) 
         scope.launch {
             val bmp = AudioCoverHelper.getAudioCoverBitmap(appContext, track.uriString)
             _currentCoverBitmap.value = bmp
-            updateNotification()
         }
 
         try {
@@ -181,6 +189,7 @@ class AudioPlaybackManager private constructor(private val appContext: Context) 
                 play()
             }
             _isPlaying.value = true
+            com.example.service.AudioPlaybackService.start(appContext)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -198,6 +207,16 @@ class AudioPlaybackManager private constructor(private val appContext: Context) 
                 }
             }
         }
+    }
+
+    fun pause() {
+        exoPlayer?.pause()
+        _isPlaying.value = false
+    }
+
+    fun play() {
+        exoPlayer?.play()
+        _isPlaying.value = true
     }
 
     fun playNext() {
@@ -336,7 +355,7 @@ class AudioPlaybackManager private constructor(private val appContext: Context) 
         _isPlaying.value = false
         _isMiniPlayerVisible.value = false
         _isFullScreenOpen.value = false
-        clearNotification()
+        com.example.service.AudioPlaybackService.stop(appContext)
     }
 
     private fun handleTrackEnded() {
@@ -379,66 +398,6 @@ class AudioPlaybackManager private constructor(private val appContext: Context) 
     private fun stopProgressUpdates() {
         progressJob?.cancel()
         progressJob = null
-    }
-
-    // Media Notification
-    private val NOTIF_CHANNEL_ID = "f2w_audio_playback_channel"
-    private val NOTIF_ID = 4481
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                NOTIF_CHANNEL_ID,
-                "F2W Audio Player",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Controls for background music playback in F2W Player"
-                setShowBadge(false)
-            }
-            val nm = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.createNotificationChannel(channel)
-        }
-    }
-
-    private fun updateNotification() {
-        val track = _currentTrack.value ?: return
-        createNotificationChannel()
-
-        val openIntent = Intent(appContext, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val pOpen = PendingIntent.getActivity(
-            appContext,
-            0,
-            openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notifBuilder = NotificationCompat.Builder(appContext, NOTIF_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle(track.title)
-            .setContentText(track.subtitle.ifBlank { "F2W Audio Player" })
-            .setContentIntent(pOpen)
-            .setOngoing(_isPlaying.value)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-
-        val coverBmp = _currentCoverBitmap.value
-        if (coverBmp != null) {
-            notifBuilder.setLargeIcon(coverBmp)
-        }
-
-        try {
-            val nm = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.notify(NOTIF_ID, notifBuilder.build())
-        } catch (_: Exception) {}
-    }
-
-    private fun clearNotification() {
-        try {
-            val nm = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.cancel(NOTIF_ID)
-        } catch (_: Exception) {}
     }
 
     companion object {

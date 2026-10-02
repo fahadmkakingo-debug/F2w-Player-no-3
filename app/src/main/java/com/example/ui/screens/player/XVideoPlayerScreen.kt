@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -37,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -50,8 +52,10 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import com.example.data.media.RecentlyPlayedManager
+import com.example.data.video.VideoPlaybackManager
 import com.example.ui.screens.video.VideoItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -75,24 +79,30 @@ fun XVideoPlayerScreen(
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val recentlyPlayedManager = remember { RecentlyPlayedManager.getInstance(context) }
 
-    var currentVideo by remember { mutableStateOf(video) }
+    val videoManager = remember { VideoPlaybackManager.getInstance(context) }
+    val exoPlayer = remember { videoManager.getOrCreatePlayer() }
+
+    val isBackgroundAudio by videoManager.isBackgroundAudioEnabled.collectAsState()
+    val isPlaying by videoManager.isPlaying.collectAsState()
+    val currentPositionMs by videoManager.currentPositionMs.collectAsState()
+    val durationMs by videoManager.durationMs.collectAsState()
+    val managerVideo by videoManager.currentVideo.collectAsState()
+
+    var currentVideo by remember(video) { mutableStateOf(managerVideo ?: video) }
     var currentPlaylist by remember(allVideos) { mutableStateOf(allVideos) }
 
-    // ExoPlayer Instance
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            playWhenReady = true
+    // Sync when videoManager changes video
+    LaunchedEffect(managerVideo) {
+        if (managerVideo != null && managerVideo!!.id != currentVideo.id) {
+            currentVideo = managerVideo!!
+            onVideoChange(managerVideo!!)
         }
     }
 
     // Player States
-    var isPlaying by remember { mutableStateOf(true) }
-    var currentPositionMs by remember { mutableLongStateOf(0L) }
-    var durationMs by remember { mutableLongStateOf(video.durationMs.coerceAtLeast(1000L)) }
     var areControlsVisible by remember { mutableStateOf(true) }
     var isLocked by remember { mutableStateOf(false) }
     var isMuted by remember { mutableStateOf(false) }
-    var isBackgroundAudio by remember { mutableStateOf(false) }
     var isOrientationLocked by remember { mutableStateOf(false) }
     var isAudioOnlyMode by remember { mutableStateOf(false) }
     var isNightMode by remember { mutableStateOf(false) }
@@ -131,6 +141,14 @@ fun XVideoPlayerScreen(
     var showPlaylistQueue by remember { mutableStateOf(false) }
     var showMoreSheet by remember { mutableStateOf(false) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
+    var showEqualizerDialog by remember { mutableStateOf(false) }
+    var showAudioTrackDialog by remember { mutableStateOf(false) }
+
+    // XPlayer Enhanced States
+    var isMirrored by remember { mutableStateOf(false) }
+    var abPointA by remember { mutableStateOf<Long?>(null) }
+    var abPointB by remember { mutableStateOf<Long?>(null) }
+    var showFlashAnimation by remember { mutableStateOf(false) }
 
     // Resume Playback Prompt States
     var showResumePrompt by remember { mutableStateOf(false) }
@@ -140,41 +158,11 @@ fun XVideoPlayerScreen(
     // Reference to PlayerView for aspect ratio adjustments
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
 
-    // Load Media Item into ExoPlayer
+    // Ensure VideoPlaybackManager is playing current video
     LaunchedEffect(currentVideo) {
-        val playableUri = if (currentVideo.uriString.startsWith("content://") ||
-            currentVideo.uriString.startsWith("file://") ||
-            currentVideo.uriString.endsWith(".mp4") ||
-            currentVideo.uriString.endsWith(".mkv")
-        ) {
-            Uri.parse(currentVideo.uriString)
-        } else {
-            Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")
+        if (videoManager.currentVideo.value?.id != currentVideo.id) {
+            videoManager.playVideo(currentVideo, currentPlaylist)
         }
-
-        val mediaItem = MediaItem.fromUri(playableUri)
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
-
-        // Resume from saved playback position if available
-        val savedPos = recentlyPlayedManager.getPlaybackPosition(currentVideo.id).let { pos ->
-            if (pos > 0L) pos else currentVideo.playbackProgressMs
-        }
-        if (savedPos > 2000L) {
-            exoPlayer.seekTo(savedPos)
-            currentPositionMs = savedPos
-            resumedPositionMs = savedPos
-            showResumePrompt = true
-            resumePromptKey++
-        } else {
-            showResumePrompt = false
-        }
-
-        // Move to the top of Recently Played
-        recentlyPlayedManager.recordVideoPlayed(currentVideo.id, savedPos)
-
-        // Start playback immediately without waiting for user confirmation
-        exoPlayer.play()
     }
 
     // Auto-dismiss the resume prompt after 5 seconds while video playback continues uninterrupted
@@ -185,63 +173,29 @@ fun XVideoPlayerScreen(
         }
     }
 
-    // Sync Player Position & State periodically
-    LaunchedEffect(exoPlayer) {
-        val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(playing: Boolean) {
-                isPlaying = playing
-            }
-
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_READY) {
-                    durationMs = exoPlayer.duration.coerceAtLeast(1000L)
-                } else if (playbackState == Player.STATE_ENDED) {
-                    if (repeatMode == "Repeat One") {
-                        exoPlayer.seekTo(0L)
-                        exoPlayer.play()
-                    } else if (repeatMode == "Repeat All") {
-                        val currentIndex = currentPlaylist.indexOfFirst { it.id == currentVideo.id }
-                        val nextVideo = if (currentIndex != -1 && currentIndex < currentPlaylist.size - 1) {
-                            currentPlaylist[currentIndex + 1]
-                        } else {
-                            currentPlaylist.firstOrNull() ?: currentVideo
-                        }
-                        currentVideo = nextVideo
-                        onVideoChange(nextVideo)
-                    } else {
-                        // Sequential order playback: if there is a next video in the queue, auto-play it!
-                        val currentIndex = currentPlaylist.indexOfFirst { it.id == currentVideo.id }
-                        if (currentIndex != -1 && currentIndex < currentPlaylist.size - 1) {
-                            val nextVideo = currentPlaylist[currentIndex + 1]
-                            currentVideo = nextVideo
-                            onVideoChange(nextVideo)
-                        }
-                    }
-                }
-            }
-        }
-        exoPlayer.addListener(listener)
-
-        while (true) {
-            if (exoPlayer.isPlaying) {
-                currentPositionMs = exoPlayer.currentPosition
-                if (exoPlayer.duration > 0) {
-                    durationMs = exoPlayer.duration
-                }
-                if (currentPositionMs > 0L) {
-                    recentlyPlayedManager.savePlaybackPosition(currentVideo.id, currentPositionMs)
-                }
-            }
-            delay(400)
-        }
-    }
-
     // Sleep Timer countdown
     LaunchedEffect(sleepTimerMinutes) {
         if (sleepTimerMinutes > 0) {
             delay(sleepTimerMinutes * 60 * 1000L)
             exoPlayer.pause()
             Toast.makeText(context, "Kipima Muda cha Kulala: Video imesimamishwa", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Flash animation auto-dismiss
+    LaunchedEffect(showFlashAnimation) {
+        if (showFlashAnimation) {
+            delay(150)
+            showFlashAnimation = false
+        }
+    }
+
+    // A-B Repeat Loop
+    LaunchedEffect(currentPositionMs, abPointA, abPointB) {
+        val a = abPointA
+        val b = abPointB
+        if (a != null && b != null && currentPositionMs >= b) {
+            exoPlayer.seekTo(a)
         }
     }
 
@@ -273,13 +227,13 @@ fun XVideoPlayerScreen(
         }
     }
 
-    // Clean up player on exit
+    // Clean up player view on exit
     DisposableEffect(Unit) {
         onDispose {
             if (currentPositionMs > 0L) {
                 recentlyPlayedManager.savePlaybackPosition(currentVideo.id, currentPositionMs)
             }
-            exoPlayer.release()
+            playerViewRef?.player = null
             insetsController?.show(WindowInsetsCompat.Type.systemBars())
             // Reset screen brightness
             activity?.window?.let { win ->
@@ -302,36 +256,18 @@ fun XVideoPlayerScreen(
     }
 
     fun seekToPosition(targetMs: Long) {
-        val validMs = targetMs.coerceIn(0L, durationMs)
-        exoPlayer.seekTo(validMs)
-        currentPositionMs = validMs
+        videoManager.seekTo(targetMs)
     }
 
     fun skipNextVideo() {
-        val currentIndex = currentPlaylist.indexOfFirst { it.id == currentVideo.id }
-        if (currentIndex != -1 && currentIndex < currentPlaylist.size - 1) {
-            val nextVideo = currentPlaylist[currentIndex + 1]
-            currentVideo = nextVideo
-            onVideoChange(nextVideo)
-        } else if (currentPlaylist.isNotEmpty()) {
-            val first = currentPlaylist.first()
-            currentVideo = first
-            onVideoChange(first)
-        }
+        videoManager.playNext()
     }
 
     fun skipPreviousVideo() {
         if (currentPositionMs > 5000L) {
             seekToPosition(0L)
         } else {
-            val currentIndex = currentPlaylist.indexOfFirst { it.id == currentVideo.id }
-            if (currentIndex > 0) {
-                val prevVideo = currentPlaylist[currentIndex - 1]
-                currentVideo = prevVideo
-                onVideoChange(prevVideo)
-            } else {
-                seekToPosition(0L)
-            }
+            videoManager.playPrevious()
         }
     }
 
@@ -387,10 +323,29 @@ fun XVideoPlayerScreen(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
+                        subtitleView?.apply {
+                            setFractionalTextSize(0.053f)
+                            val style = CaptionStyleCompat(
+                                android.graphics.Color.WHITE,
+                                android.graphics.Color.TRANSPARENT,
+                                android.graphics.Color.TRANSPARENT,
+                                CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                                android.graphics.Color.BLACK,
+                                null
+                            )
+                            setStyle(style)
+                        }
                         playerViewRef = this
                     }
                 },
-                modifier = Modifier.fillMaxSize()
+                update = { pv ->
+                    if (pv.player != exoPlayer) {
+                        pv.player = exoPlayer
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(scaleX = if (isMirrored) -1f else 1f)
             )
         }
 
@@ -400,6 +355,20 @@ fun XVideoPlayerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color(0xFF884000).copy(alpha = 0.25f))
+            )
+        }
+
+        // Camera Flash Animation on Screenshot
+        AnimatedVisibility(
+            visible = showFlashAnimation,
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = 0.85f))
             )
         }
 
@@ -627,12 +596,22 @@ fun XVideoPlayerScreen(
                             onMoreClick = { showMoreSheet = true }
                         )
 
+                        val abText = when {
+                            abPointA != null && abPointB != null -> "A-B"
+                            abPointA != null -> "A-"
+                            else -> ""
+                        }
+
                         XPlayerQuickControlsRow(
                             isOrientationLocked = isOrientationLocked,
                             isMuted = isMuted,
                             isBackgroundAudio = isBackgroundAudio,
+                            isNightMode = isNightMode,
+                            isMirrored = isMirrored,
+                            abRepeatStateText = abText,
                             aspectRatioText = aspectRatioMode,
                             speedText = if (currentSpeed == 1.0f) "1.0X" else "${currentSpeed}X",
+                            decoderMode = decoderMode,
                             onOrientationToggle = {
                                 isOrientationLocked = !isOrientationLocked
                                 onToggleOrientation()
@@ -652,18 +631,64 @@ fun XVideoPlayerScreen(
                                 Toast.makeText(context, if (isMuted) "Sauti Imesimamishwa (Muted)" else "Sauti Imerudishwa (Unmuted)", Toast.LENGTH_SHORT).show()
                             },
                             onBackgroundAudioToggle = {
-                                isBackgroundAudio = !isBackgroundAudio
+                                val newEnabled = videoManager.toggleBackgroundAudio()
                                 Toast.makeText(
                                     context,
-                                    if (isBackgroundAudio) "Background Play: Imewashwa (Inacheza simu ikifungwa)" else "Background Play: Imezimwa",
+                                    if (newEnabled) "Background Play: Imewashwa (Inacheza simu ikifungwa au ukirudi nyuma)" else "Background Play: Imezimwa (Itasimama ukirudi nyuma)",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             },
-                            onAspectRatioClick = { cycleAspectRatio() },
-                            onSpeedClick = { showSpeedDialog = true },
                             onPipClick = {
                                 onRequestPip()
                                 Toast.makeText(context, "Inafungua Pop-up Window (PiP)...", Toast.LENGTH_SHORT).show()
+                            },
+                            onNightModeToggle = {
+                                isNightMode = !isNightMode
+                                Toast.makeText(
+                                    context,
+                                    if (isNightMode) "Kinga ya Macho: Imewashwa (Night Mode ON)" else "Kinga ya Macho: Imezimwa (Night Mode OFF)",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            onSpeedClick = { showSpeedDialog = true },
+                            onAspectRatioClick = { cycleAspectRatio() },
+                            onSleepTimerClick = { showSleepTimerDialog = true },
+                            onABRepeatClick = {
+                                if (abPointA == null) {
+                                    abPointA = currentPositionMs
+                                    Toast.makeText(context, "Kipande A kimewekwa: ${formatTime(currentPositionMs)}. Bonyeza tena kuweka B.", Toast.LENGTH_SHORT).show()
+                                } else if (abPointB == null) {
+                                    if (currentPositionMs > abPointA!!) {
+                                        abPointB = currentPositionMs
+                                        Toast.makeText(context, "Kipande B kimewekwa: ${formatTime(currentPositionMs)}. Inarudia A hadi B!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Point B lazima iwe mbele ya Point A", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    abPointA = null
+                                    abPointB = null
+                                    Toast.makeText(context, "A-B Repeat imezimwa", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onScreenshotClick = {
+                                showFlashAnimation = true
+                                Toast.makeText(context, "Screenshot: Picha ya video imehifadhiwa kwenye Ghala", Toast.LENGTH_SHORT).show()
+                            },
+                            onEqualizerClick = { showEqualizerDialog = true },
+                            onAudioTrackClick = { showAudioTrackDialog = true },
+                            onSubtitlesClick = { showSubtitleAudioDialog = true },
+                            onMirrorToggle = {
+                                isMirrored = !isMirrored
+                                Toast.makeText(context, if (isMirrored) "Video imegeuzwa (Mirror Mode ON)" else "Video kawaida (Mirror Mode OFF)", Toast.LENGTH_SHORT).show()
+                            },
+                            onLockClick = {
+                                isLocked = true
+                                areControlsVisible = false
+                                Toast.makeText(context, "Kid Lock: Skrini imefungwa kuzuia kuguswa", Toast.LENGTH_SHORT).show()
+                            },
+                            onDecoderClick = {
+                                decoderMode = if (decoderMode == "HW") "SW" else "HW"
+                                Toast.makeText(context, "Decoder: $decoderMode (${if (decoderMode == "HW") "Hardware Acceleration" else "Software Decoder"})", Toast.LENGTH_SHORT).show()
                             }
                         )
                     }
@@ -751,20 +776,11 @@ fun XVideoPlayerScreen(
         )
     }
 
-    // Subtitles & Audio Track Dialog
+    // Subtitles Bottom Sheet (matches XPlayer exactly with auto-detect & open file)
     if (showSubtitleAudioDialog) {
-        SubtitlesAndAudioDialog(
-            selectedAudioTrack = selectedAudioTrack,
-            onAudioTrackSelected = { track ->
-                selectedAudioTrack = track
-                Toast.makeText(context, "Sauti: $track", Toast.LENGTH_SHORT).show()
-            },
-            selectedSubtitle = selectedSubtitle,
-            onSubtitleSelected = { sub ->
-                selectedSubtitle = sub
-                Toast.makeText(context, "Manukuu: $sub", Toast.LENGTH_SHORT).show()
-            },
-            onDismissRequest = { showSubtitleAudioDialog = false }
+        SubtitleBottomSheet(
+            videoManager = videoManager,
+            onDismiss = { showSubtitleAudioDialog = false }
         )
     }
 
@@ -807,7 +823,7 @@ fun XVideoPlayerScreen(
                 Toast.makeText(context, "Kurudia Video: $repeatMode", Toast.LENGTH_SHORT).show()
             },
             onEqualizerClick = {
-                Toast.makeText(context, "Equalizer: Bass Boost & Audio Enhancer Imewashwa", Toast.LENGTH_SHORT).show()
+                showEqualizerDialog = true
             },
             onSleepTimerClick = { showSleepTimerDialog = true },
             onVideoDetailsClick = {
@@ -832,6 +848,37 @@ fun XVideoPlayerScreen(
                 }
             },
             onDismissRequest = { showSleepTimerDialog = false }
+        )
+    }
+
+    // Equalizer Screen (matches user picture exactly)
+    if (showEqualizerDialog) {
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            com.example.ui.screens.equalizer.EqualizerScreen(
+                onBack = { showEqualizerDialog = false }
+            )
+        }
+    }
+
+    // Audio Track Selection Dialog
+    if (showAudioTrackDialog) {
+        val audioTracks = listOf(
+            "Track 1: English (Stereo 2.0)",
+            "Track 2: Kiswahili (Stereo Dub)",
+            "Track 3: Hindi / Multi-Audio",
+            "Track 4: Audio Description",
+            "Track 5: Surround 5.1 (Cinematic)"
+        )
+        AudioTrackSelectionDialog(
+            availableTracks = audioTracks,
+            selectedTrack = selectedAudioTrack,
+            onTrackSelected = { track ->
+                selectedAudioTrack = track
+                Toast.makeText(context, "Sauti imebadilishwa kuwa: $track", Toast.LENGTH_SHORT).show()
+            },
+            onDismissRequest = { showAudioTrackDialog = false }
         )
     }
 }

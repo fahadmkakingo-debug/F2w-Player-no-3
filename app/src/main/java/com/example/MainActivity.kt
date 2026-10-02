@@ -1,6 +1,7 @@
 package com.example
  
 import android.app.PictureInPictureParams
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Build
@@ -13,6 +14,8 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.example.data.video.VideoPlaybackManager
+import com.example.service.VideoPlaybackService
 import com.example.ui.MainScreen
 import com.example.ui.theme.F2WPlayerTheme
  
@@ -27,6 +30,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         com.example.util.media.VideoThumbnailHelper.initialize(this)
         enableEdgeToEdge()
+        handleIntent(intent)
         setContent {
             F2WPlayerTheme {
                 MainScreen(
@@ -36,6 +40,28 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action == VideoPlaybackService.ACTION_OPEN_FULLSCREEN) {
+            VideoPlaybackManager.getInstance(applicationContext).openFullScreen()
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        VideoPlaybackManager.getInstance(applicationContext).onAppForegrounded()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        VideoPlaybackManager.getInstance(applicationContext).onAppBackgrounded()
     }
 
     fun enterPipMode(): Boolean {

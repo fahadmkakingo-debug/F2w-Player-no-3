@@ -165,27 +165,21 @@ fun AboutAppScreen(
                 // App Brand Icon with Glow
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(88.dp)
                         .shadow(
-                            elevation = 20.dp,
+                            elevation = 18.dp,
                             shape = RoundedCornerShape(22.dp),
                             spotColor = Color(0xFF00E5FF),
                             ambientColor = Color(0xFF00E5FF)
                         )
                         .clip(RoundedCornerShape(22.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(Color(0xFF00C7DE), Color(0xFF009AB0))
-                            )
-                        ),
+                        .background(Color.Black),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "F2W",
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 26.sp,
-                        letterSpacing = 1.sp
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_f2w_logo),
+                        contentDescription = "F2W Player Logo",
+                        modifier = Modifier.size(80.dp)
                     )
                 }
 

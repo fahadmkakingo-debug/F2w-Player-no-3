@@ -76,6 +76,7 @@ fun VideoSettingsScreen(
     var resumePlayback by remember { mutableStateOf(prefs.resumePlayback) }
     var autoMiniplayer by remember { mutableStateOf(prefs.autoMiniplayer) }
     var autoPlayNext by remember { mutableStateOf(prefs.autoPlayNext) }
+    var isBackgroundPlayEnabled by remember { mutableStateOf(prefs.isBackgroundPlayEnabled) }
 
     // Persistent State for Control
     var gestureControl by remember { mutableStateOf(prefs.gestureControl) }
@@ -233,6 +234,21 @@ fun VideoSettingsScreen(
                         prefs.autoPlayNext = it
                     },
                     testTag = "switch_auto_play_next"
+                )
+
+                HorizontalDivider(color = F2WCardBorder.copy(alpha = 0.5f), thickness = 0.8.dp)
+
+                // Background video playback (Play video in background like audio)
+                SettingsSwitchRow(
+                    title = "Background video playback",
+                    subtitle = "Play video audio in background when exiting app or pressing back",
+                    checked = isBackgroundPlayEnabled,
+                    onCheckedChange = {
+                        isBackgroundPlayEnabled = it
+                        prefs.isBackgroundPlayEnabled = it
+                        com.example.data.video.VideoPlaybackManager.getInstance(context).setBackgroundAudioEnabled(it)
+                    },
+                    testTag = "switch_background_video_playback"
                 )
             }
 

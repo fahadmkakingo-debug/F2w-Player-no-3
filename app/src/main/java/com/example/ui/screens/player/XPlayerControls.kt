@@ -18,6 +18,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,8 +46,11 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FitScreen
+import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.History
@@ -56,10 +61,14 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
@@ -212,134 +221,229 @@ fun XPlayerQuickControlsRow(
     isOrientationLocked: Boolean,
     isMuted: Boolean,
     isBackgroundAudio: Boolean,
+    isNightMode: Boolean,
+    isMirrored: Boolean,
+    abRepeatStateText: String,
     aspectRatioText: String,
     speedText: String,
+    decoderMode: String,
     onOrientationToggle: () -> Unit,
     onMuteToggle: () -> Unit,
     onBackgroundAudioToggle: () -> Unit,
-    onAspectRatioClick: () -> Unit,
-    onSpeedClick: () -> Unit,
     onPipClick: () -> Unit,
+    onNightModeToggle: () -> Unit,
+    onSpeedClick: () -> Unit,
+    onAspectRatioClick: () -> Unit,
+    onSleepTimerClick: () -> Unit,
+    onABRepeatClick: () -> Unit,
+    onScreenshotClick: () -> Unit,
+    onEqualizerClick: () -> Unit,
+    onAudioTrackClick: () -> Unit,
+    onSubtitlesClick: () -> Unit,
+    onMirrorToggle: () -> Unit,
+    onLockClick: () -> Unit,
+    onDecoderClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val scrollState = rememberScrollState()
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .displayCutoutPadding()
-            .padding(horizontal = 14.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .horizontalScroll(scrollState)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 1. Rotation Lock
-        QuickCircleButton(
+        QuickPillButton(
             icon = Icons.Filled.ScreenRotation,
+            label = if (isOrientationLocked) "Locked" else "Rotate",
             isActive = isOrientationLocked,
             onClick = onOrientationToggle,
             contentDescription = "Mzunguko wa Skrini"
         )
 
         // 2. Quick Mute
-        QuickCircleButton(
+        QuickPillButton(
             icon = if (isMuted) Icons.Filled.VolumeMute else Icons.Filled.VolumeUp,
+            label = if (isMuted) "Muted" else "Mute",
             isActive = isMuted,
             onClick = onMuteToggle,
             contentDescription = "Sauti"
         )
 
         // 3. Background Play (Headphones)
-        QuickCircleButton(
+        QuickPillButton(
             icon = Icons.Filled.Headphones,
+            label = "BG Play",
             isActive = isBackgroundAudio,
             onClick = onBackgroundAudioToggle,
-            contentDescription = "Background Play (Audio)"
+            contentDescription = "Background Audio Play"
         )
 
         // 4. Pop-up / Floating Window (PiP)
-        QuickCircleButton(
+        QuickPillButton(
             icon = Icons.Filled.PictureInPictureAlt,
+            label = "Pop-up",
             isActive = false,
             onClick = onPipClick,
             contentDescription = "Pop-up / Floating Window (PiP)"
         )
 
-        // 5. Playback Speed Button (e.g. "1.0X", "1.5X")
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(if (speedText != "1X" && speedText != "1.0X") F2WCyanPrimary.copy(alpha = 0.25f) else Color(0x661E1E1E))
-                .border(
-                    1.dp,
-                    if (speedText != "1X" && speedText != "1.0X") F2WCyanPrimary else Color.White.copy(alpha = 0.3f),
-                    CircleShape
-                )
-                .clickable(onClick = onSpeedClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = speedText,
-                color = if (speedText != "1X" && speedText != "1.0X") F2WCyanPrimary else Color.White,
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        // 5. Night Mode / Eye Protection
+        QuickPillButton(
+            icon = Icons.Filled.DarkMode,
+            label = "Night",
+            isActive = isNightMode,
+            onClick = onNightModeToggle,
+            contentDescription = "Kinga ya Macho (Night Mode)"
+        )
 
-        // 6. Aspect Ratio Switcher (Fit, 16:9, Stretch)
-        Box(
-            modifier = Modifier
-                .height(40.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0x661E1E1E))
-                .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                .clickable(onClick = onAspectRatioClick)
-                .padding(horizontal = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.AspectRatio,
-                    contentDescription = "Aspect Ratio",
-                    tint = Color.White,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = aspectRatioText,
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
+        // 6. Playback Speed Button (e.g. "1.0X", "1.5X")
+        QuickPillButton(
+            icon = Icons.Filled.Speed,
+            label = speedText,
+            isActive = speedText != "1X" && speedText != "1.0X",
+            onClick = onSpeedClick,
+            contentDescription = "Kasi ya Video"
+        )
+
+        // 7. Aspect Ratio Switcher (Fit, 16:9, Stretch, Fill, etc.)
+        QuickPillButton(
+            icon = Icons.Filled.AspectRatio,
+            label = aspectRatioText,
+            isActive = aspectRatioText != "Fit",
+            onClick = onAspectRatioClick,
+            contentDescription = "Ukubwa wa Skrini (Aspect Ratio)"
+        )
+
+        // 8. Sleep Timer
+        QuickPillButton(
+            icon = Icons.Filled.Timer,
+            label = "Timer",
+            isActive = false,
+            onClick = onSleepTimerClick,
+            contentDescription = "Kipima Muda cha Kulala"
+        )
+
+        // 9. A-B Repeat
+        QuickPillButton(
+            icon = if (abRepeatStateText.isNotEmpty()) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+            label = if (abRepeatStateText.isNotEmpty()) "Repeat $abRepeatStateText" else "A-B Loop",
+            isActive = abRepeatStateText.isNotEmpty(),
+            onClick = onABRepeatClick,
+            contentDescription = "Kurudia Sehemu A-B"
+        )
+
+        // 10. Screenshot / Capture Screen
+        QuickPillButton(
+            icon = Icons.Filled.CameraAlt,
+            label = "Capture",
+            isActive = false,
+            onClick = onScreenshotClick,
+            contentDescription = "Piga Picha ya Skrini (Screenshot)"
+        )
+
+        // 11. Equalizer / Sound Boost
+        QuickPillButton(
+            icon = Icons.Filled.GraphicEq,
+            label = "Equalizer",
+            isActive = false,
+            onClick = onEqualizerClick,
+            contentDescription = "Equalizer na Bass Boost"
+        )
+
+        // 12. Audio Track / Language Switcher
+        QuickPillButton(
+            icon = Icons.Filled.Audiotrack,
+            label = "Audio",
+            isActive = false,
+            onClick = onAudioTrackClick,
+            contentDescription = "Lugha ya Sauti"
+        )
+
+        // 13. Subtitles & Closed Captions
+        QuickPillButton(
+            icon = Icons.Filled.ClosedCaption,
+            label = "Subtitles",
+            isActive = false,
+            onClick = onSubtitlesClick,
+            contentDescription = "Manukuu (Subtitles)"
+        )
+
+        // 14. Mirror / Flip Video
+        QuickPillButton(
+            icon = Icons.Filled.Flip,
+            label = if (isMirrored) "Mirrored" else "Mirror",
+            isActive = isMirrored,
+            onClick = onMirrorToggle,
+            contentDescription = "Geuza Video (Mirror Mode)"
+        )
+
+        // 15. Screen Lock (Kid Lock)
+        QuickPillButton(
+            icon = Icons.Filled.Lock,
+            label = "Lock",
+            isActive = false,
+            onClick = onLockClick,
+            contentDescription = "Funga Skrini (Kid Lock)"
+        )
+
+        // 16. Decoder (HW / SW)
+        QuickPillButton(
+            icon = Icons.Filled.HighQuality,
+            label = decoderMode,
+            isActive = decoderMode == "HW",
+            onClick = onDecoderClick,
+            contentDescription = "Decoder Mode (HW/SW)"
+        )
     }
 }
 
 @Composable
-private fun QuickCircleButton(
+private fun QuickPillButton(
     icon: ImageVector,
+    label: String,
     isActive: Boolean,
     onClick: () -> Unit,
     contentDescription: String
 ) {
     Box(
         modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(if (isActive) F2WCyanPrimary.copy(alpha = 0.35f) else Color(0x661E1E1E))
+            .height(38.dp)
+            .clip(RoundedCornerShape(19.dp))
+            .background(
+                if (isActive) F2WCyanPrimary.copy(alpha = 0.28f)
+                else Color(0x881E1F24)
+            )
             .border(
                 1.dp,
-                if (isActive) F2WCyanPrimary else Color.White.copy(alpha = 0.3f),
-                CircleShape
+                if (isActive) F2WCyanPrimary else Color.White.copy(alpha = 0.22f),
+                RoundedCornerShape(19.dp)
             )
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .padding(horizontal = 11.dp),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = if (isActive) F2WCyanPrimary else Color.White,
-            modifier = Modifier.size(19.dp)
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = if (isActive) F2WCyanPrimary else Color.White,
+                modifier = Modifier.size(17.dp)
+            )
+            if (label.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                    text = label,
+                    color = if (isActive) F2WCyanPrimary else Color.White,
+                    fontSize = 11.5.sp,
+                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
+                )
+            }
+        }
     }
 }
 

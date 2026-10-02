@@ -13,7 +13,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
-import com.example.data.audio.AudioPlaybackManager
+import com.example.data.video.VideoPlaybackManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -21,10 +21,10 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /**
- * Foreground service managing continuous background audio playback
+ * Foreground service managing background video audio playback
  * and persistent interactive media notifications in the notification drawer.
  */
-class AudioPlaybackService : Service() {
+class VideoPlaybackService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var isForeground = false
@@ -38,16 +38,16 @@ class AudioPlaybackService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val audioManager = AudioPlaybackManager.getInstance(applicationContext)
+        val videoManager = VideoPlaybackManager.getInstance(applicationContext)
 
         when (intent?.action) {
-            ACTION_TOGGLE -> audioManager.togglePlayPause()
-            ACTION_PLAY -> if (!audioManager.isPlaying.value) audioManager.togglePlayPause()
-            ACTION_PAUSE -> if (audioManager.isPlaying.value) audioManager.togglePlayPause()
-            ACTION_NEXT -> audioManager.playNext()
-            ACTION_PREV -> audioManager.playPrevious()
+            ACTION_TOGGLE -> videoManager.togglePlayPause()
+            ACTION_PLAY -> if (!videoManager.isPlaying.value) videoManager.togglePlayPause()
+            ACTION_PAUSE -> if (videoManager.isPlaying.value) videoManager.togglePlayPause()
+            ACTION_NEXT -> videoManager.playNext()
+            ACTION_PREV -> videoManager.playPrevious()
             ACTION_STOP -> {
-                audioManager.dismissMiniPlayer()
+                videoManager.stopPlayback()
                 stopForegroundInternal()
                 stopSelf()
                 return START_NOT_STICKY
@@ -62,40 +62,40 @@ class AudioPlaybackService : Service() {
     }
 
     private fun observePlaybackState() {
-        val audioManager = AudioPlaybackManager.getInstance(applicationContext)
+        val videoManager = VideoPlaybackManager.getInstance(applicationContext)
 
         serviceScope.launch {
-            audioManager.currentTrack.collectLatest {
+            videoManager.currentVideo.collectLatest {
                 updateNotificationState()
             }
         }
 
         serviceScope.launch {
-            audioManager.isPlaying.collectLatest {
+            videoManager.isPlaying.collectLatest {
                 updateNotificationState()
             }
         }
 
         serviceScope.launch {
-            audioManager.currentCoverBitmap.collectLatest {
+            videoManager.currentThumbnailBitmap.collectLatest {
                 updateNotificationState()
             }
         }
     }
 
     private fun updateNotificationState() {
-        val audioManager = AudioPlaybackManager.getInstance(applicationContext)
-        val track = audioManager.currentTrack.value
+        val videoManager = VideoPlaybackManager.getInstance(applicationContext)
+        val video = videoManager.currentVideo.value
 
-        if (track == null) {
+        if (video == null) {
             stopForegroundInternal()
             stopSelf()
             return
         }
 
-        val isPlaying = audioManager.isPlaying.value
-        val coverBmp = audioManager.currentCoverBitmap.value
-        val notification = buildNotification(track.title, track.subtitle, isPlaying, coverBmp)
+        val isPlaying = videoManager.isPlaying.value
+        val thumbnailBmp = videoManager.currentThumbnailBitmap.value
+        val notification = buildNotification(video.title, isPlaying, thumbnailBmp)
 
         if (!isForeground) {
             try {
@@ -134,16 +134,16 @@ class AudioPlaybackService : Service() {
 
     private fun buildNotification(
         title: String,
-        subtitle: String,
         isPlaying: Boolean,
-        coverBitmap: Bitmap?
+        thumbnailBitmap: Bitmap?
     ): Notification {
         val openIntent = Intent(this, MainActivity::class.java).apply {
+            action = ACTION_OPEN_FULLSCREEN
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pOpen = PendingIntent.getActivity(
             this,
-            0,
+            10,
             openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -151,32 +151,32 @@ class AudioPlaybackService : Service() {
         // Action 1: Previous (Kulidisha nyuma)
         val pPrev = PendingIntent.getService(
             this,
-            1,
-            Intent(this, AudioPlaybackService::class.java).apply { action = ACTION_PREV },
+            11,
+            Intent(this, VideoPlaybackService::class.java).apply { action = ACTION_PREV },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         // Action 2: Play / Pause (Pausi / Cheza)
         val pToggle = PendingIntent.getService(
             this,
-            2,
-            Intent(this, AudioPlaybackService::class.java).apply { action = ACTION_TOGGLE },
+            12,
+            Intent(this, VideoPlaybackService::class.java).apply { action = ACTION_TOGGLE },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         // Action 3: Next
         val pNext = PendingIntent.getService(
             this,
-            3,
-            Intent(this, AudioPlaybackService::class.java).apply { action = ACTION_NEXT },
+            13,
+            Intent(this, VideoPlaybackService::class.java).apply { action = ACTION_NEXT },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Action 4: Close / Stop (Kuikata kabisa nyimbo isiendelee)
+        // Action 4: Close / Stop (Kuikata kabisa video isiendelee)
         val pStop = PendingIntent.getService(
             this,
-            4,
-            Intent(this, AudioPlaybackService::class.java).apply { action = ACTION_STOP },
+            14,
+            Intent(this, VideoPlaybackService::class.java).apply { action = ACTION_STOP },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -190,20 +190,19 @@ class AudioPlaybackService : Service() {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle(title)
-            .setContentText(subtitle.ifBlank { "F2W Audio Player" })
+            .setContentText("F2W Video • Background Play")
             .setContentIntent(pOpen)
             .setOngoing(isPlaying)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setShowWhen(false)
-            // Explicit user actions
             .addAction(android.R.drawable.ic_media_previous, "Previous", pPrev)
             .addAction(playPauseIcon, playPauseText, pToggle)
             .addAction(android.R.drawable.ic_media_next, "Next", pNext)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", pStop)
 
-        if (coverBitmap != null) {
-            builder.setLargeIcon(coverBitmap)
+        if (thumbnailBitmap != null) {
+            builder.setLargeIcon(thumbnailBitmap)
         }
 
         return builder.build()
@@ -213,10 +212,10 @@ class AudioPlaybackService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "F2W Music Playback",
+                "F2W Video Background Play",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Background music controls for F2W Player"
+                description = "Background video controls for F2W Player"
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
@@ -231,20 +230,21 @@ class AudioPlaybackService : Service() {
     }
 
     companion object {
-        const val CHANNEL_ID = "f2w_audio_playback_channel"
-        const val NOTIFICATION_ID = 4481
+        const val CHANNEL_ID = "f2w_video_playback_channel"
+        const val NOTIFICATION_ID = 5592
 
-        const val ACTION_START = "com.example.action.START"
-        const val ACTION_TOGGLE = "com.example.action.TOGGLE"
-        const val ACTION_PLAY = "com.example.action.PLAY"
-        const val ACTION_PAUSE = "com.example.action.PAUSE"
-        const val ACTION_PREV = "com.example.action.PREV"
-        const val ACTION_NEXT = "com.example.action.NEXT"
-        const val ACTION_STOP = "com.example.action.STOP"
-        const val ACTION_UPDATE = "com.example.action.UPDATE"
+        const val ACTION_START = "com.example.action.video.START"
+        const val ACTION_TOGGLE = "com.example.action.video.TOGGLE"
+        const val ACTION_PLAY = "com.example.action.video.PLAY"
+        const val ACTION_PAUSE = "com.example.action.video.PAUSE"
+        const val ACTION_PREV = "com.example.action.video.PREV"
+        const val ACTION_NEXT = "com.example.action.video.NEXT"
+        const val ACTION_STOP = "com.example.action.video.STOP"
+        const val ACTION_UPDATE = "com.example.action.video.UPDATE"
+        const val ACTION_OPEN_FULLSCREEN = "com.example.action.video.OPEN_FULLSCREEN"
 
         fun start(context: Context) {
-            val intent = Intent(context, AudioPlaybackService::class.java).apply {
+            val intent = Intent(context, VideoPlaybackService::class.java).apply {
                 action = ACTION_START
             }
             try {
@@ -258,8 +258,19 @@ class AudioPlaybackService : Service() {
             }
         }
 
+        fun update(context: Context) {
+            val intent = Intent(context, VideoPlaybackService::class.java).apply {
+                action = ACTION_UPDATE
+            }
+            try {
+                context.startService(intent)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
         fun stop(context: Context) {
-            val intent = Intent(context, AudioPlaybackService::class.java).apply {
+            val intent = Intent(context, VideoPlaybackService::class.java).apply {
                 action = ACTION_STOP
             }
             try {

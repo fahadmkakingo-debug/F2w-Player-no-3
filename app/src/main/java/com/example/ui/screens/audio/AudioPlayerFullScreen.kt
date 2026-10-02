@@ -722,72 +722,15 @@ fun AudioPlayerFullScreen(
         )
     }
 
-    // Equalizer Preset Dialog
+    // Equalizer Screen (matches XPlayer exactly)
     if (showEqualizerDialog) {
-        val presets = listOf("Flat (Kawaida)", "Bass Boost", "Vocal Booster", "Pop", "Rock", "Classical", "Electronic", "Jazz")
-        var selectedPreset by remember { mutableStateOf("Bass Boost") }
-
-        AlertDialog(
-            onDismissRequest = { showEqualizerDialog = false },
-            containerColor = Color(0xFF1C212D),
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Equalizer,
-                        contentDescription = null,
-                        tint = Color(0xFF10B981),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Audio Equalizer & Sound Effects",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp
-                    )
-                }
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    presets.forEach { preset ->
-                        val isSelected = selectedPreset == preset
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) Color(0x3310B981) else Color.Transparent)
-                                .clickable {
-                                    selectedPreset = preset
-                                    Toast.makeText(context, "Sound Preset: $preset applied", Toast.LENGTH_SHORT).show()
-                                }
-                                .padding(vertical = 10.dp, horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = preset,
-                                color = if (isSelected) Color(0xFF10B981) else Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                            if (isSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF10B981))
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showEqualizerDialog = false }) {
-                    Text("OK", color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
-                }
-            }
-        )
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            com.example.ui.screens.equalizer.EqualizerScreen(
+                onBack = { showEqualizerDialog = false }
+            )
+        }
     }
 
     // Track Details Dialog

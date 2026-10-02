@@ -41,7 +41,8 @@ object MediaPermissionManager {
                         Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
                     )
                     MediaPermissionType.AUDIO -> arrayOf(
-                        Manifest.permission.READ_MEDIA_AUDIO
+                        Manifest.permission.READ_MEDIA_AUDIO,
+                        Manifest.permission.POST_NOTIFICATIONS
                     )
                     MediaPermissionType.IMAGES -> arrayOf(
                         Manifest.permission.READ_MEDIA_IMAGES,
@@ -51,7 +52,8 @@ object MediaPermissionManager {
                         Manifest.permission.READ_MEDIA_VIDEO,
                         Manifest.permission.READ_MEDIA_AUDIO,
                         Manifest.permission.READ_MEDIA_IMAGES,
-                        Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+                        Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+                        Manifest.permission.POST_NOTIFICATIONS
                     )
                 }
             }
@@ -59,12 +61,16 @@ object MediaPermissionManager {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
                 when (type) {
                     MediaPermissionType.VIDEO -> arrayOf(Manifest.permission.READ_MEDIA_VIDEO)
-                    MediaPermissionType.AUDIO -> arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
+                    MediaPermissionType.AUDIO -> arrayOf(
+                        Manifest.permission.READ_MEDIA_AUDIO,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    )
                     MediaPermissionType.IMAGES -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
                     MediaPermissionType.ALL_MEDIA -> arrayOf(
                         Manifest.permission.READ_MEDIA_VIDEO,
                         Manifest.permission.READ_MEDIA_AUDIO,
-                        Manifest.permission.READ_MEDIA_IMAGES
+                        Manifest.permission.READ_MEDIA_IMAGES,
+                        Manifest.permission.POST_NOTIFICATIONS
                     )
                 }
             }

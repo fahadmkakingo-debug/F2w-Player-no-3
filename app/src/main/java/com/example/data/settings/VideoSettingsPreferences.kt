@@ -21,6 +21,7 @@ class VideoSettingsPreferences(context: Context) {
         private const val KEY_LONG_PRESS_VIBRATION = "long_press_vibration"
         private const val KEY_TAP_RATIOS_DIRECTLY = "tap_ratios_directly"
         private const val KEY_REMEMBER_BG_PLAY = "remember_bg_play"
+        private const val KEY_BG_PLAY_ENABLED = "bg_play_enabled"
         private const val KEY_REMEMBER_RATIO = "remember_ratio"
         private const val KEY_REMEMBER_SPEED = "remember_speed"
         private const val KEY_REMEMBER_BRIGHTNESS = "remember_brightness"
@@ -82,6 +83,10 @@ class VideoSettingsPreferences(context: Context) {
     var rememberBackgroundPlay: Boolean
         get() = prefs.getBoolean(KEY_REMEMBER_BG_PLAY, true)
         set(value) = prefs.edit().putBoolean(KEY_REMEMBER_BG_PLAY, value).apply()
+
+    var isBackgroundPlayEnabled: Boolean
+        get() = prefs.getBoolean(KEY_BG_PLAY_ENABLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_BG_PLAY_ENABLED, value).apply()
 
     var rememberRatio: Boolean
         get() = prefs.getBoolean(KEY_REMEMBER_RATIO, true)
