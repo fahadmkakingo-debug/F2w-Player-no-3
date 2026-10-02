@@ -346,9 +346,7 @@ fun XVideoPlayerScreen(
                     }
                 },
                 update = { pv ->
-                    if (pv.player != exoPlayer) {
-                        pv.player = exoPlayer
-                    }
+                    pv.player = exoPlayer
                     playerViewRef = pv
                 },
                 modifier = Modifier

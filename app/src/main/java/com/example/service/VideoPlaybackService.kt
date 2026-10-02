@@ -196,10 +196,14 @@ class VideoPlaybackService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setShowWhen(false)
-            .addAction(android.R.drawable.ic_media_previous, "Previous", pPrev)
-            .addAction(playPauseIcon, playPauseText, pToggle)
-            .addAction(android.R.drawable.ic_media_next, "Next", pNext)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", pStop)
+            .addAction(android.R.drawable.ic_media_previous, "Previous", pPrev) // Index 0
+            .addAction(playPauseIcon, playPauseText, pToggle) // Index 1
+            .addAction(android.R.drawable.ic_media_next, "Next", pNext) // Index 2
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", pStop) // Index 3
+            .setStyle(
+                androidx.media.app.NotificationCompat.MediaStyle()
+                    .setShowActionsInCompactView(0, 1, 2)
+            )
 
         if (thumbnailBitmap != null) {
             builder.setLargeIcon(thumbnailBitmap)
