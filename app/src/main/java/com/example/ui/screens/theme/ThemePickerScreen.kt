@@ -115,9 +115,22 @@ fun ThemePickerScreen(
                     )
                 }
 
-                // Centered Title: Name of currently inspected theme
+                // Centered Title: Name of currently inspected theme with emoji
+                val themeHeaderIcon = when (inspectedTheme) {
+                    AppTheme.MIDNIGHT_GALAXY -> "🌌 "
+                    AppTheme.OCEAN_GLASS -> "🌊 "
+                    AppTheme.NATURE_GREEN -> "🌿 "
+                    AppTheme.SUNSET_GLOW -> "🌅 "
+                    AppTheme.BLACK_CARBON -> "🖤 "
+                    AppTheme.NEON_PURPLE -> "💜 "
+                    AppTheme.CRYSTAL_ICE -> "💎 "
+                    AppTheme.SOFT_PASTEL -> "🌸 "
+                    AppTheme.CYBER_RED -> "🔥 "
+                    AppTheme.CLOUDY_SKY -> "☁️ "
+                    else -> ""
+                }
                 Text(
-                    text = inspectedTheme.title,
+                    text = "$themeHeaderIcon${inspectedTheme.title}",
                     color = Color.White,
                     fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
@@ -286,6 +299,27 @@ private fun ThemeSwatchItem(
                 .background(colors.swatchGradient),
             contentAlignment = Alignment.Center
         ) {
+            val swatchEmoji = when (theme) {
+                AppTheme.MIDNIGHT_GALAXY -> "🌌"
+                AppTheme.OCEAN_GLASS -> "🌊"
+                AppTheme.NATURE_GREEN -> "🌿"
+                AppTheme.SUNSET_GLOW -> "🌅"
+                AppTheme.BLACK_CARBON -> "🖤"
+                AppTheme.NEON_PURPLE -> "💜"
+                AppTheme.CRYSTAL_ICE -> "💎"
+                AppTheme.SOFT_PASTEL -> "🌸"
+                AppTheme.CYBER_RED -> "🔥"
+                AppTheme.CLOUDY_SKY -> "☁️"
+                AppTheme.F2W_CYAN -> "✨"
+                AppTheme.EMERALD_MINT -> "🍃"
+                AppTheme.CRIMSON_ROSE -> "🌹"
+                AppTheme.ROYAL_INDIGO -> "👑"
+                AppTheme.OCEAN_BLUE -> "🐬"
+                AppTheme.AMOLED_BLACK -> "🌑"
+                AppTheme.DEEP_SLATE -> "⚡"
+                else -> null
+            }
+
             if (theme == AppTheme.SYSTEM_DEFAULT) {
                 // Diagonal split icon for system default
                 Icon(
@@ -301,6 +335,11 @@ private fun ThemeSwatchItem(
                         .size(width = 30.dp, height = 8.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .background(Color(0xFF009688))
+                )
+            } else if (swatchEmoji != null) {
+                Text(
+                    text = swatchEmoji,
+                    fontSize = 18.sp
                 )
             }
         }

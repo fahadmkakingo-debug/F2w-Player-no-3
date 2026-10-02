@@ -17,10 +17,20 @@ enum class AppTheme(
 ) {
     SYSTEM_DEFAULT("system_default", "System Default", isAuto = true),
     F2W_CYAN("f2w_cyan", "Cyan Night"),
+    MIDNIGHT_GALAXY("midnight_galaxy", "Midnight Galaxy"),
+    OCEAN_GLASS("ocean_glass", "Ocean Glass"),
+    NATURE_GREEN("nature_green", "Nature Green"),
+    SUNSET_GLOW("sunset_glow", "Sunset Glow"),
+    BLACK_CARBON("black_carbon", "Black Carbon"),
+    NEON_PURPLE("neon_purple", "Neon Purple"),
+    CRYSTAL_ICE("crystal_ice", "Crystal Ice"),
+    SOFT_PASTEL("soft_pastel", "Soft Pastel"),
+    CYBER_RED("cyber_red", "Cyber Red"),
+    CLOUDY_SKY("cloudy_sky", "Cloudy Sky"),
     LIGHT("light", "Silver Slate"),
     AMOLED_BLACK("amoled_black", "AMOLED Black"),
     DEEP_SLATE("deep_slate", "Dark Slate"),
-    PURPLE_NEON("purple_neon", "Neon Purple"),
+    PURPLE_NEON("purple_neon", "Purple Neon"),
     EMERALD_MINT("emerald_mint", "Emerald Mint"),
     CRIMSON_ROSE("crimson_rose", "Crimson Rose"),
     ROYAL_INDIGO("royal_indigo", "Royal Indigo"),
@@ -64,7 +74,187 @@ object ThemePaletteFactory {
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFF00C7DE), Color(0xFF04141C)))
     )
 
-    // 2. Silver Slate (Clean Slate supporting crisp white text)
+    // 2. Midnight Galaxy (Dark navy + purple + glowing star accents)
+    val MidnightGalaxy = F2WThemeColors(
+        background = Color(0xFF060B1C),
+        surface = Color(0xFF0B1229),
+        surfaceElevated = Color(0xFF131D3F),
+        surfaceHighlight = Color(0xFF1D2A54),
+        cardBorder = Color(0xFF31437E),
+        primary = Color(0xFF7928CA),
+        primaryDark = Color(0xFF5A189A),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xEE0B1229),
+        navPillActive = Color(0xFF1D2A54),
+        navPillBorder = Color(0xFF79FFE1),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFF7928CA), Color(0xFF50E3C2), Color(0xFF060B1C)))
+    )
+
+    // 3. Ocean Glass (Blue/cyan gradient + transparent glass effect)
+    val OceanGlass = F2WThemeColors(
+        background = Color(0xFF021B2B),
+        surface = Color(0xFF052A40),
+        surfaceElevated = Color(0xFF093B57),
+        surfaceHighlight = Color(0xFF0E4E73),
+        cardBorder = Color(0xFF18709E),
+        primary = Color(0xFF00E5FF),
+        primaryDark = Color(0xFF009AB0),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xEE052A40),
+        navPillActive = Color(0xFF0E4E73),
+        navPillBorder = Color(0xFF00E5FF),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFF00E5FF), Color(0xFF0077B6), Color(0xFF021B2B)))
+    )
+
+    // 4. Nature Green (Green + emerald + soft natural accents)
+    val NatureGreen = F2WThemeColors(
+        background = Color(0xFF03160D),
+        surface = Color(0xFF062215),
+        surfaceElevated = Color(0xFF0B3322),
+        surfaceHighlight = Color(0xFF114A32),
+        cardBorder = Color(0xFF196B49),
+        primary = Color(0xFF10B981),
+        primaryDark = Color(0xFF059669),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xEE062215),
+        navPillActive = Color(0xFF114A32),
+        navPillBorder = Color(0xFF10B981),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFF10B981), Color(0xFF059669), Color(0xFF03160D)))
+    )
+
+    // 5. Sunset Glow (Orange + pink + purple sunset gradient)
+    val SunsetGlow = F2WThemeColors(
+        background = Color(0xFF1A0A1C),
+        surface = Color(0xFF260E28),
+        surfaceElevated = Color(0xFF381438),
+        surfaceHighlight = Color(0xFF4D1A4A),
+        cardBorder = Color(0xFF702368),
+        primary = Color(0xFFFF5E00),
+        primaryDark = Color(0xFFE63946),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xEE260E28),
+        navPillActive = Color(0xFF4D1A4A),
+        navPillBorder = Color(0xFFFF007A),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFF5E00), Color(0xFFFF007A), Color(0xFF7B2CBF)))
+    )
+
+    // 6. Black Carbon (Black/dark gray, premium minimalist)
+    val BlackCarbon = F2WThemeColors(
+        background = Color(0xFF080808),
+        surface = Color(0xFF101010),
+        surfaceElevated = Color(0xFF181818),
+        surfaceHighlight = Color(0xFF242424),
+        cardBorder = Color(0xFF383838),
+        primary = Color(0xFFE2E8F0),
+        primaryDark = Color(0xFF94A3B8),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xEE101010),
+        navPillActive = Color(0xFF242424),
+        navPillBorder = Color(0xFFE2E8F0),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFF4B5563), Color(0xFF1F2937), Color(0xFF080808)))
+    )
+
+    // 7. Neon Purple (Purple + violet + blue neon glow)
+    val NeonPurpleVibrant = F2WThemeColors(
+        background = Color(0xFF0D031A),
+        surface = Color(0xFF16062A),
+        surfaceElevated = Color(0xFF220A3E),
+        surfaceHighlight = Color(0xFF310E57),
+        cardBorder = Color(0xFF4C1882),
+        primary = Color(0xFFB026FF),
+        primaryDark = Color(0xFF7928CA),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xEE16062A),
+        navPillActive = Color(0xFF310E57),
+        navPillBorder = Color(0xFF00E5FF),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFB026FF), Color(0xFF00E5FF), Color(0xFF0D031A)))
+    )
+
+    // 8. Crystal Ice (White + light blue, glossy/frosted crystal glass)
+    val CrystalIce = F2WThemeColors(
+        background = Color(0xFF0A192B),
+        surface = Color(0xFF0E233C),
+        surfaceElevated = Color(0xFF153355),
+        surfaceHighlight = Color(0xFF1D4570),
+        cardBorder = Color(0xFF2C649E),
+        primary = Color(0xFF38BDF8),
+        primaryDark = Color(0xFF0284C7),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xEE0E233C),
+        navPillActive = Color(0xFF1D4570),
+        navPillBorder = Color(0xFFE0F2FE),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFE0F2FE), Color(0xFF38BDF8), Color(0xFF0A192B)))
+    )
+
+    // 9. Soft Pastel (Pink + lavender + cream, clean & soft)
+    val SoftPastel = F2WThemeColors(
+        background = Color(0xFF1D1420),
+        surface = Color(0xFF281C2B),
+        surfaceElevated = Color(0xFF38273D),
+        surfaceHighlight = Color(0xFF4B3450),
+        cardBorder = Color(0xFF67486E),
+        primary = Color(0xFFFF70A6),
+        primaryDark = Color(0xFFE05780),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xEE281C2B),
+        navPillActive = Color(0xFF4B3450),
+        navPillBorder = Color(0xFFE0AAFF),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFF70A6), Color(0xFFE0AAFF), Color(0xFFFFD6E0)))
+    )
+
+    // 10. Cyber Red (Black + red/orange neon, futuristic)
+    val CyberRed = F2WThemeColors(
+        background = Color(0xFF140306),
+        surface = Color(0xFF1E0509),
+        surfaceElevated = Color(0xFF2D090F),
+        surfaceHighlight = Color(0xFF400E17),
+        cardBorder = Color(0xFF631522),
+        primary = Color(0xFFFF1744),
+        primaryDark = Color(0xFFD50000),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xEE1E0509),
+        navPillActive = Color(0xFF400E17),
+        navPillBorder = Color(0xFFFF6D00),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFF1744), Color(0xFFFF6D00), Color(0xFF140306)))
+    )
+
+    // 11. Cloudy Sky (Light blue + white, clouds & subtle blur)
+    val CloudySky = F2WThemeColors(
+        background = Color(0xFF0B1929),
+        surface = Color(0xFF10253B),
+        surfaceElevated = Color(0xFF183452),
+        surfaceHighlight = Color(0xFF22476D),
+        cardBorder = Color(0xFF316294),
+        primary = Color(0xFF60A5FA),
+        primaryDark = Color(0xFF3B82F6),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xEE10253B),
+        navPillActive = Color(0xFF22476D),
+        navPillBorder = Color(0xFFF0F9FF),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFF93C5FD), Color(0xFF60A5FA), Color(0xFF0B1929)))
+    )
+
+    // 12. Silver Slate (Clean Slate supporting crisp white text)
     val SilverSlate = F2WThemeColors(
         background = Color(0xFF1E293B),
         surface = Color(0xFF273548),
@@ -82,7 +272,7 @@ object ThemePaletteFactory {
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFF64748B), Color(0xFF1E293B)))
     )
 
-    // 3. Pitch Black (AMOLED)
+    // 13. Pitch Black (AMOLED)
     val AmoledBlack = F2WThemeColors(
         background = Color(0xFF000000),
         surface = Color(0xFF000000),
@@ -100,7 +290,7 @@ object ThemePaletteFactory {
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFF1F1F1F), Color(0xFF000000)))
     )
 
-    // 4. Dark Slate
+    // 14. Dark Slate
     val DarkSlate = F2WThemeColors(
         background = Color(0xFF12161A),
         surface = Color(0xFF151B20),
@@ -118,7 +308,7 @@ object ThemePaletteFactory {
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFF2D3843), Color(0xFF12161A)))
     )
 
-    // 5. Neon Purple
+    // 15. Neon Purple Classic
     val NeonPurple = F2WThemeColors(
         background = Color(0xFF0F071D),
         surface = Color(0xFF140A26),
@@ -136,7 +326,7 @@ object ThemePaletteFactory {
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFFA855F7), Color(0xFF6B21A8)))
     )
 
-    // 6. Emerald Mint
+    // 16. Emerald Mint
     val EmeraldMint = F2WThemeColors(
         background = Color(0xFF041510),
         surface = Color(0xFF071C15),
@@ -154,7 +344,7 @@ object ThemePaletteFactory {
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFF10B981), Color(0xFF047857)))
     )
 
-    // 7. Crimson Rose
+    // 17. Crimson Rose
     val CrimsonRose = F2WThemeColors(
         background = Color(0xFF18060D),
         surface = Color(0xFF200812),
@@ -172,7 +362,7 @@ object ThemePaletteFactory {
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFFF43F5E), Color(0xFF9F1239)))
     )
 
-    // 8. Royal Indigo
+    // 18. Royal Indigo
     val RoyalIndigo = F2WThemeColors(
         background = Color(0xFF080B1C),
         surface = Color(0xFF0C1027),
@@ -190,7 +380,7 @@ object ThemePaletteFactory {
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFF6366F1), Color(0xFF3730A3)))
     )
 
-    // 9. Ocean Blue
+    // 19. Ocean Blue
     val OceanBlue = F2WThemeColors(
         background = Color(0xFF031024),
         surface = Color(0xFF051630),
@@ -208,7 +398,7 @@ object ThemePaletteFactory {
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFF0284C7), Color(0xFF075985)))
     )
 
-    // 10. System Default
+    // 20. System Default
     val SystemDefault = CyanNight.copy(
         isSystemAuto = true,
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFF475569), Color(0xFF0B1B24)))
@@ -218,6 +408,16 @@ object ThemePaletteFactory {
         return when (theme) {
             AppTheme.SYSTEM_DEFAULT -> SystemDefault
             AppTheme.F2W_CYAN -> CyanNight
+            AppTheme.MIDNIGHT_GALAXY -> MidnightGalaxy
+            AppTheme.OCEAN_GLASS -> OceanGlass
+            AppTheme.NATURE_GREEN -> NatureGreen
+            AppTheme.SUNSET_GLOW -> SunsetGlow
+            AppTheme.BLACK_CARBON -> BlackCarbon
+            AppTheme.NEON_PURPLE -> NeonPurpleVibrant
+            AppTheme.CRYSTAL_ICE -> CrystalIce
+            AppTheme.SOFT_PASTEL -> SoftPastel
+            AppTheme.CYBER_RED -> CyberRed
+            AppTheme.CLOUDY_SKY -> CloudySky
             AppTheme.LIGHT -> SilverSlate
             AppTheme.AMOLED_BLACK -> AmoledBlack
             AppTheme.DEEP_SLATE -> DarkSlate

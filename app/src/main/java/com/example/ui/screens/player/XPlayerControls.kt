@@ -17,9 +17,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -87,12 +90,19 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -101,6 +111,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.PI
+import kotlin.math.sin
 import com.example.ui.theme.F2WCyanPrimary
 import com.example.ui.theme.F2WTextSecondary
 import com.example.ui.theme.F2WVioletAccent
@@ -600,19 +612,13 @@ fun XPlayerBottomBar(
                     modifier = Modifier.padding(end = 8.dp)
                 )
 
-                // Seekbar Slider without tall thumb line (smooth touch-and-drag directly on track)
-                Slider(
-                    value = progress.coerceIn(0f, 1f),
-                    onValueChange = onSeek,
-                    thumb = {},
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color.Transparent,
-                        activeTrackColor = Color(0xFFC0157B),
-                        inactiveTrackColor = Color(0xFF7E8088)
-                    ),
+                // Sleek Volcanic Magma Fire & Frosted Glass TimeBar (SeekBar)
+                VolcanicFireGlassTimeBar(
+                    progress = progress.coerceIn(0f, 1f),
+                    onSeek = onSeek,
                     modifier = Modifier
                         .weight(1f)
-                        .testTag("player_seekbar")
+                        .padding(horizontal = 4.dp)
                 )
 
                 // Total Duration Text
@@ -925,6 +931,273 @@ fun ResumePlaybackPromptOverlay(
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                         .testTag("restart_video_btn")
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Sleek 3D Volcanic Magma Fire & Frosted Glass TimeBar (SeekBar).
+ * - Unplayed segment: Frosted crystal glass tube with specular light reflection and depth.
+ * - Active played segment: Animated molten volcanic lava & fire flames flowing and pulsating with progress.
+ * - Leading edge: Blazing molten lava orb with burning plasma aura and floating ember sparks.
+ * - Height: Refined sleek 7dp-8dp bar with an ergonomic 34dp touch-and-drag hit area.
+ */
+@Composable
+fun VolcanicFireGlassTimeBar(
+    progress: Float,
+    onSeek: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "volcanic_fire_timebar")
+
+    // Magma flow motion
+    val magmaFlow by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "magma_flow"
+    )
+
+    // Flame heat flicker & pulsation
+    val flameFlicker by infiniteTransition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 360, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "flame_flicker"
+    )
+
+    // Floating embers drift
+    val emberProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ember_drift"
+    )
+
+    var isDragging by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableFloatStateOf(0f) }
+
+    val currentProgress = if (isDragging) dragFraction else progress.coerceIn(0f, 1f)
+
+    Box(
+        modifier = modifier
+            .height(34.dp)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = { offset ->
+                        val target = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
+                        onSeek(target)
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { offset ->
+                        isDragging = true
+                        val target = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
+                        dragFraction = target
+                        onSeek(target)
+                    },
+                    onDragEnd = {
+                        isDragging = false
+                    },
+                    onDragCancel = {
+                        isDragging = false
+                    },
+                    onHorizontalDrag = { change, _ ->
+                        change.consume()
+                        val target = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
+                        dragFraction = target
+                        onSeek(target)
+                    }
+                )
+            }
+            .testTag("player_seekbar"),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(28.dp)
+        ) {
+            val canvasWidth = size.width
+            val canvasHeight = size.height
+            if (canvasWidth <= 0f) return@Canvas
+
+            val trackHeight = 7.dp.toPx()
+            val trackY = (canvasHeight - trackHeight) / 2f
+            val cornerRadius = trackHeight / 2f
+            val activeWidth = (canvasWidth * currentProgress).coerceIn(0f, canvasWidth)
+
+            // 1. Unplayed Segment: Frosted Crystal Glass Tube Channel
+            val glassRect = RoundRect(
+                left = 0f,
+                top = trackY,
+                right = canvasWidth,
+                bottom = trackY + trackHeight,
+                radiusX = cornerRadius,
+                radiusY = cornerRadius
+            )
+            val glassPath = Path().apply { addRoundRect(glassRect) }
+
+            // Glass background fill
+            val glassBrush = Brush.verticalGradient(
+                colors = listOf(
+                    Color(0x55FFFFFF), // top glass specular highlight
+                    Color(0x22A0C4E8), // translucent frosted core
+                    Color(0x35000000)  // subtle glass underside shadow
+                ),
+                startY = trackY,
+                endY = trackY + trackHeight
+            )
+            drawPath(path = glassPath, brush = glassBrush)
+
+            // Glass outer rim bevel border
+            val glassBorderBrush = Brush.verticalGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.50f),
+                    Color(0x20FFFFFF),
+                    Color.Black.copy(alpha = 0.50f)
+                ),
+                startY = trackY,
+                endY = trackY + trackHeight
+            )
+            drawPath(path = glassPath, brush = glassBorderBrush, style = Stroke(width = 1.dp.toPx()))
+
+            // 2. Active Segment: Blazing Volcanic Magma Lava & Fire Flames
+            if (activeWidth > 0.5f) {
+                val activeRect = RoundRect(
+                    left = 0f,
+                    top = trackY,
+                    right = activeWidth,
+                    bottom = trackY + trackHeight,
+                    radiusX = cornerRadius,
+                    radiusY = cornerRadius
+                )
+                val activePath = Path().apply { addRoundRect(activeRect) }
+
+                // Volcanic Magma Core Gradient with animated flow shift
+                val flowShift = magmaFlow * 120f
+                val activeFireBrush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF800020), // Deep Magma Crimson
+                        Color(0xFFD00000), // Fiery Ruby Red
+                        Color(0xFFFF3D00), // Intense Lava Orange
+                        Color(0xFFFF9100), // Molten Volcanic Amber
+                        Color(0xFFFFDD00), // Golden Flame
+                        Color(0xFFFFFBEA)  // White-hot plasma tip
+                    ),
+                    start = Offset(0f - flowShift, trackY),
+                    end = Offset(activeWidth + (120f - flowShift), trackY + trackHeight)
+                )
+                drawPath(path = activePath, brush = activeFireBrush)
+
+                // Lava Plasma Current Overlay (sinusoidal fiery ripples)
+                val plasmaPath = Path().apply {
+                    moveTo(0f, trackY + trackHeight / 2f)
+                    for (x in 0..activeWidth.toInt() step 6) {
+                        val nx = x / activeWidth.coerceAtLeast(1f)
+                        val wave = sin((nx * 4f * PI.toFloat()) + (magmaFlow * 2f * PI.toFloat())) * (trackHeight * 0.28f * flameFlicker)
+                        lineTo(x.toFloat(), trackY + trackHeight / 2f + wave)
+                    }
+                }
+                drawPath(
+                    path = plasmaPath,
+                    color = Color(0x99FFF176),
+                    style = Stroke(width = 1.5.dp.toPx())
+                )
+
+                // Top intense flame glow shine
+                val topGlowPath = Path().apply {
+                    addRoundRect(
+                        RoundRect(
+                            left = 0f,
+                            top = trackY,
+                            right = activeWidth,
+                            bottom = trackY + (trackHeight * 0.45f),
+                            radiusX = cornerRadius,
+                            radiusY = cornerRadius
+                        )
+                    )
+                }
+                drawPath(
+                    path = topGlowPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.55f * flameFlicker.coerceAtMost(1f)),
+                            Color.Transparent
+                        ),
+                        startY = trackY,
+                        endY = trackY + (trackHeight * 0.45f)
+                    )
+                )
+
+                // 3. Leading Fire Head / Molten Volcano Orb & Embers at current position
+                val headCenterX = activeWidth
+                val headCenterY = trackY + trackHeight / 2f
+
+                // Outer Heat Halo / Flame Glow
+                val haloRadius = (12.dp.toPx()) * (if (isDragging) 1.25f else flameFlicker)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xD0FF5400),
+                            Color(0x80FF0000),
+                            Color.Transparent
+                        ),
+                        center = Offset(headCenterX, headCenterY),
+                        radius = haloRadius
+                    ),
+                    radius = haloRadius,
+                    center = Offset(headCenterX, headCenterY)
+                )
+
+                // Molten Core Orb
+                val coreRadius = (if (isDragging) 7.5.dp.toPx() else 5.5.dp.toPx()) * flameFlicker
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.White,
+                            Color(0xFFFFE082),
+                            Color(0xFFFF3D00)
+                        ),
+                        center = Offset(headCenterX - 1f, headCenterY - 1f),
+                        radius = coreRadius
+                    ),
+                    radius = coreRadius,
+                    center = Offset(headCenterX, headCenterY)
+                )
+
+                // Flying Fiery Ember Sparks drifting from the flame head
+                val sparkOffsets = listOf(
+                    Pair(-8f, -6f),
+                    Pair(-14f, 4f),
+                    Pair(-20f, -8f),
+                    Pair(-6f, 7f)
+                )
+                sparkOffsets.forEachIndexed { i, spark ->
+                    val sparkDrift = emberProgress
+                    val sx = headCenterX + spark.first - (sparkDrift * 16f)
+                    val sy = headCenterY + spark.second - (sin((sparkDrift + i) * PI.toFloat()) * 6f)
+                    if (sx > 0f) {
+                        val sparkAlpha = (1f - sparkDrift).coerceIn(0f, 1f) * flameFlicker.coerceAtMost(1f)
+                        drawCircle(
+                            color = Color(0xFFFFD54F).copy(alpha = sparkAlpha),
+                            radius = (1.8f * (1f - sparkDrift * 0.4f)).coerceAtLeast(0.6f),
+                            center = Offset(sx, sy)
+                        )
+                    }
+                }
             }
         }
     }
