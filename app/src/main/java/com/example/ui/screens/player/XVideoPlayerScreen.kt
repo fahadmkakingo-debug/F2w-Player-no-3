@@ -88,16 +88,8 @@ fun XVideoPlayerScreen(
     val durationMs by videoManager.durationMs.collectAsState()
     val managerVideo by videoManager.currentVideo.collectAsState()
 
-    var currentVideo by remember(video) { mutableStateOf(managerVideo ?: video) }
+    val currentVideo = managerVideo ?: video
     var currentPlaylist by remember(allVideos) { mutableStateOf(allVideos) }
-
-    // Sync when videoManager changes video
-    LaunchedEffect(managerVideo) {
-        if (managerVideo != null && managerVideo!!.id != currentVideo.id) {
-            currentVideo = managerVideo!!
-            onVideoChange(managerVideo!!)
-        }
-    }
 
     // Player States
     var areControlsVisible by remember { mutableStateOf(true) }
@@ -157,13 +149,6 @@ fun XVideoPlayerScreen(
 
     // Reference to PlayerView for aspect ratio adjustments
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
-
-    // Ensure VideoPlaybackManager is playing current video
-    LaunchedEffect(currentVideo) {
-        if (videoManager.currentVideo.value?.id != currentVideo.id) {
-            videoManager.playVideo(currentVideo, currentPlaylist)
-        }
-    }
 
     // Auto-dismiss the resume prompt after 5 seconds while video playback continues uninterrupted
     LaunchedEffect(showResumePrompt, resumePromptKey) {
@@ -798,7 +783,7 @@ fun XVideoPlayerScreen(
             videos = currentPlaylist,
             currentVideoId = currentVideo.id,
             onVideoSelected = { videoItem ->
-                currentVideo = videoItem
+                videoManager.playVideo(videoItem, currentPlaylist)
                 onVideoChange(videoItem)
             },
             onQueueReordered = { updatedQueue ->

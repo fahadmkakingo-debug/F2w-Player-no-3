@@ -233,13 +233,18 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
         releasePlayer()
         val player = getOrCreatePlayer()
 
-        val playableUri = if (video.uriString.startsWith("content://") ||
-            video.uriString.startsWith("file://") ||
-            video.uriString.endsWith(".mp4") ||
-            video.uriString.endsWith(".mkv")
-        ) {
-            Uri.parse(video.uriString)
-        } else {
+        val playableUri = try {
+            val uriStr = video.uriString
+            if (uriStr.startsWith("content://") || uriStr.startsWith("file://") || uriStr.startsWith("http://") || uriStr.startsWith("https://")) {
+                Uri.parse(uriStr)
+            } else if (uriStr.startsWith("/")) {
+                Uri.fromFile(java.io.File(uriStr))
+            } else if (uriStr.isNotBlank()) {
+                Uri.parse(uriStr)
+            } else {
+                Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")
+            }
+        } catch (e: Exception) {
             Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")
         }
 
