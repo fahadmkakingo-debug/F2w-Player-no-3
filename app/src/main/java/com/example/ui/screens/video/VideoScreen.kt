@@ -22,8 +22,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -84,7 +86,8 @@ fun VideoScreen(
     isListView: Boolean = false,
     onToggleViewMode: () -> Unit = {},
     onVideoClick: (VideoItem, List<VideoItem>) -> Unit = { _, _ -> },
-    onFolderClick: (VideoFolder) -> Unit = {}
+    onFolderClick: (VideoFolder) -> Unit = {},
+    gridState: LazyGridState = rememberLazyGridState()
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -313,6 +316,7 @@ fun VideoScreen(
         }
 
         LazyVerticalGrid(
+            state = gridState,
             columns = GridCells.Fixed(columnsCount),
             modifier = Modifier
                 .fillMaxWidth()

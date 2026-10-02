@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/notification_container"
+    android:layout_width="match_parent"
+    android:layout_height="68dp"
+    android:background="@drawable/bg_notification_glass"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="10dp"
+    android:paddingEnd="10dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <!-- Album Art / Thumbnail -->
+    <ImageView
+        android:id="@+id/notification_artwork"
+        android:layout_width="54dp"
+        android:layout_height="54dp"
+        android:contentDescription="Artwork"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_f2w_logo" />
+
+    <!-- Title and Subtitle Info -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="6dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/notification_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#FFFFFFFF"
+            android:textSize="13.5sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/notification_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#B3BAE6FD"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- Media Controls (Icons Only - Never Hidden) -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <!-- Previous Button -->
+        <ImageButton
+            android:id="@+id/btn_notification_prev"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:background="@drawable/bg_notification_button_glass"
+            android:contentDescription="Previous"
+            android:padding="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_notification_prev" />
+
+        <!-- Play/Pause Button -->
+        <ImageButton
+            android:id="@+id/btn_notification_play_pause"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_notification_play_glass"
+            android:contentDescription="Play/Pause"
+            android:padding="7dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_notification_pause" />
+
+        <!-- Next Button -->
+        <ImageButton
+            android:id="@+id/btn_notification_next"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:background="@drawable/bg_notification_button_glass"
+            android:contentDescription="Next"
+            android:padding="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_notification_next" />
+
+        <!-- Close / Stop Button -->
+        <ImageButton
+            android:id="@+id/btn_notification_close"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/bg_notification_button_glass"
+            android:contentDescription="Close"
+            android:padding="7dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_notification_close" />
+    </LinearLayout>
+
+</LinearLayout>

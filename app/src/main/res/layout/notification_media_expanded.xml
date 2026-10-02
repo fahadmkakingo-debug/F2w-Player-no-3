@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/notification_container_big"
+    android:layout_width="match_parent"
+    android:layout_height="128dp"
+    android:background="@drawable/bg_notification_glass"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp">
+
+    <!-- Top Row: Artwork + Title/Artist + Close Button -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/notification_artwork_big"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:contentDescription="Artwork"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_f2w_logo" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/notification_title_big"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#FFFFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/notification_subtitle_big"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#B3BAE6FD"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/btn_notification_close_big"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_notification_button_glass"
+            android:contentDescription="Close"
+            android:padding="7dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_notification_close" />
+    </LinearLayout>
+
+    <!-- Bottom Row: Centered Water-Glass Playback Control Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <!-- Previous Button -->
+        <ImageButton
+            android:id="@+id/btn_notification_prev_big"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_notification_button_glass"
+            android:contentDescription="Previous"
+            android:padding="8dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_notification_prev" />
+
+        <!-- Play/Pause Button -->
+        <ImageButton
+            android:id="@+id/btn_notification_play_pause_big"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/bg_notification_play_glass"
+            android:contentDescription="Play/Pause"
+            android:padding="10dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_notification_pause" />
+
+        <!-- Next Button -->
+        <ImageButton
+            android:id="@+id/btn_notification_next_big"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="16dp"
+            android:background="@drawable/bg_notification_button_glass"
+            android:contentDescription="Next"
+            android:padding="8dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_notification_next" />
+    </LinearLayout>
+
+</LinearLayout>

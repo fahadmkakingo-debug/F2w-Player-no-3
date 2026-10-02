@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -112,6 +113,7 @@ fun MainScreen(
     var showThemePicker by remember { mutableStateOf(false) }
     var showEqualizerScreen by remember { mutableStateOf(false) }
     var isListView by remember { mutableStateOf(false) }
+    val videoGridState = rememberLazyGridState()
 
     val videoManager = remember { com.example.data.video.VideoPlaybackManager.getInstance(context) }
     val currentPlayingVideo by videoManager.currentVideo.collectAsState()
@@ -127,27 +129,6 @@ fun MainScreen(
         com.example.ui.screens.audio.AudioPlayerFullScreen(
             audioManager = audioManager,
             onBack = { audioManager.closeFullScreen() }
-        )
-        return
-    }
-
-    // Fullscreen XPlayer when a video is clicked or restored
-    if (isFullScreenVideoOpen && currentPlayingVideo != null) {
-        val playerQueue = if (videoManager.playlist.value.isNotEmpty()) videoManager.playlist.value else allScannedVideos
-        XVideoPlayerScreen(
-            video = currentPlayingVideo!!,
-            allVideos = playerQueue,
-            isInPipMode = isInPipMode,
-            onRequestPip = {
-                onRequestPip()
-            },
-            onToggleOrientation = onToggleOrientation,
-            onBack = {
-                videoManager.closeFullScreen()
-            },
-            onVideoChange = { nextVideo ->
-                videoManager.playVideo(nextVideo, playerQueue)
-            }
         )
         return
     }
@@ -185,110 +166,133 @@ fun MainScreen(
         NavTab.PRIVACY -> "Private Media Vault"
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = F2WBackground,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            if (selectedTab != NavTab.AUDIO) {
-                F2WTopBar(
-                    subtitle = subtitle,
-                    onSearchClick = { showSearchDialog = true },
-                    isListView = isListView,
-                    onToggleViewMode = { isListView = !isListView },
-                    onThemeClick = { showThemePicker = true },
-                    onRefreshClick = {
-                        scanner.startScan(forceFullRescan = true)
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Refreshing media storage...")
-                        }
-                    },
-                    onEqualiserClick = {
-                        showEqualizerScreen = true
-                    },
-                    onSettingsClick = { showSettingsPage = true }
-                )
-            }
-        },
-        bottomBar = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                com.example.ui.screens.video.VideoMiniPlayerBar(
-                    videoManager = videoManager,
-                    onExpand = { videoManager.openFullScreen() }
-                )
-                com.example.ui.screens.audio.AudioMiniPlayerBar(
-                    audioManager = audioManager,
-                    onExpand = { audioManager.openFullScreen() },
-                    onOpenQueue = { audioManager.openFullScreen() }
-                )
-                FloatingNavBar(
-                    selectedTab = selectedTab,
-                    onTabSelected = { selectedTab = it }
-                )
-            }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            // Main Content Area with Smooth Animation
-            AnimatedContent(
-                targetState = selectedTab,
-                transitionSpec = {
-                    fadeIn() togetherWith fadeOut()
-                },
-                label = "screen_tab_transition",
-                modifier = Modifier.fillMaxSize()
-            ) { targetTab ->
-                when (targetTab) {
-                    NavTab.VIDEO -> VideoScreen(
-                        videos = allScannedVideos,
-                        onScanRequest = {
-                            coroutineScope.launch {
-                                snackbarHostState.showSnackbar("Local storage scanner initialized.")
-                            }
-                        },
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = F2WBackground,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                if (selectedTab != NavTab.AUDIO) {
+                    F2WTopBar(
+                        subtitle = subtitle,
+                        onSearchClick = { showSearchDialog = true },
                         isListView = isListView,
                         onToggleViewMode = { isListView = !isListView },
-                        onVideoClick = { clickedVideo, playlist ->
-                            videoManager.playVideo(clickedVideo, playlist)
-                        }
-                    )
-                    NavTab.AUDIO -> AudioScreen(
-                        onScanRequest = {
+                        onThemeClick = { showThemePicker = true },
+                        onRefreshClick = {
+                            scanner.startScan(forceFullRescan = true)
                             coroutineScope.launch {
-                                snackbarHostState.showSnackbar("Local storage scanner initialized for audio discovery.")
+                                snackbarHostState.showSnackbar("Refreshing media storage...")
                             }
-                        }
+                        },
+                        onEqualiserClick = {
+                            showEqualizerScreen = true
+                        },
+                        onSettingsClick = { showSettingsPage = true }
                     )
-                    NavTab.PLAYLIST -> PlaylistScreen(
-                        onPlayVideoPlaylist = { playlistVideos, startIndex ->
-                            val startVideo = playlistVideos.getOrNull(startIndex) ?: playlistVideos.firstOrNull()
-                            if (startVideo != null) {
-                                videoManager.playVideo(startVideo, playlistVideos)
+                }
+            },
+            bottomBar = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    com.example.ui.screens.video.VideoMiniPlayerBar(
+                        videoManager = videoManager,
+                        onExpand = { videoManager.openFullScreen() }
+                    )
+                    com.example.ui.screens.audio.AudioMiniPlayerBar(
+                        audioManager = audioManager,
+                        onExpand = { audioManager.openFullScreen() },
+                        onOpenQueue = { audioManager.openFullScreen() }
+                    )
+                    FloatingNavBar(
+                        selectedTab = selectedTab,
+                        onTabSelected = { selectedTab = it }
+                    )
+                }
+            }
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                // Main Content Area with Smooth Animation
+                AnimatedContent(
+                    targetState = selectedTab,
+                    transitionSpec = {
+                        fadeIn() togetherWith fadeOut()
+                    },
+                    label = "screen_tab_transition",
+                    modifier = Modifier.fillMaxSize()
+                ) { targetTab ->
+                    when (targetTab) {
+                        NavTab.VIDEO -> VideoScreen(
+                            videos = allScannedVideos,
+                            onScanRequest = {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Local storage scanner initialized.")
+                                }
+                            },
+                            isListView = isListView,
+                            onToggleViewMode = { isListView = !isListView },
+                            onVideoClick = { clickedVideo, playlist ->
+                                videoManager.playVideo(clickedVideo, playlist)
+                            },
+                            gridState = videoGridState
+                        )
+                        NavTab.AUDIO -> AudioScreen(
+                            onScanRequest = {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Local storage scanner initialized for audio discovery.")
+                                }
                             }
-                        }
-                    )
-                    NavTab.PRIVACY -> PrivacyScreen()
+                        )
+                        NavTab.PLAYLIST -> PlaylistScreen(
+                            onPlayVideoPlaylist = { playlistVideos, startIndex ->
+                                val startVideo = playlistVideos.getOrNull(startIndex) ?: playlistVideos.firstOrNull()
+                                if (startVideo != null) {
+                                    videoManager.playVideo(startVideo, playlistVideos)
+                                }
+                            }
+                        )
+                        NavTab.PRIVACY -> PrivacyScreen()
+                    }
                 }
             }
         }
-    }
 
-    // Search Screen Overlay
-    if (showSearchDialog) {
-        VideoSearchOverlayScreen(
-            allVideos = allScannedVideos,
-            onBack = { showSearchDialog = false },
-            onVideoClick = { clickedVideo ->
-                videoManager.playVideo(clickedVideo, allScannedVideos)
-                showSearchDialog = false
-            }
-        )
+        // Fullscreen XPlayer Overlay: Stays on top without destroying VideoScreen scroll state
+        if (isFullScreenVideoOpen && currentPlayingVideo != null) {
+            val playerQueue = if (videoManager.playlist.value.isNotEmpty()) videoManager.playlist.value else allScannedVideos
+            XVideoPlayerScreen(
+                video = currentPlayingVideo!!,
+                allVideos = playerQueue,
+                isInPipMode = isInPipMode,
+                onRequestPip = {
+                    onRequestPip()
+                },
+                onToggleOrientation = onToggleOrientation,
+                onBack = {
+                    videoManager.closeFullScreen()
+                },
+                onVideoChange = { nextVideo ->
+                    videoManager.playVideo(nextVideo, playerQueue)
+                }
+            )
+        }
+
+        // Search Screen Overlay
+        if (showSearchDialog) {
+            VideoSearchOverlayScreen(
+                allVideos = allScannedVideos,
+                onBack = { showSearchDialog = false },
+                onVideoClick = { clickedVideo ->
+                    videoManager.playVideo(clickedVideo, allScannedVideos)
+                    showSearchDialog = false
+                }
+            )
+        }
     }
 }

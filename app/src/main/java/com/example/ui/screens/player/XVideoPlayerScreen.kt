@@ -233,7 +233,6 @@ fun XVideoPlayerScreen(
             if (currentPositionMs > 0L) {
                 recentlyPlayedManager.savePlaybackPosition(currentVideo.id, currentPositionMs)
             }
-            playerViewRef?.player = null
             insetsController?.show(WindowInsetsCompat.Type.systemBars())
             // Reset screen brightness
             activity?.window?.let { win ->
@@ -246,12 +245,20 @@ fun XVideoPlayerScreen(
 
     // Back button handling: If locked, unlock first; otherwise exit or pip
     BackHandler {
-        if (isLocked) {
-            isLocked = false
-            areControlsVisible = true
-            Toast.makeText(context, "Kid Lock imeondolewa (Screen Unlocked)", Toast.LENGTH_SHORT).show()
-        } else {
-            onBack()
+        when {
+            isLocked -> {
+                isLocked = false
+                areControlsVisible = true
+                Toast.makeText(context, "Kid Lock imeondolewa (Screen Unlocked)", Toast.LENGTH_SHORT).show()
+            }
+            showSubtitleAudioDialog -> showSubtitleAudioDialog = false
+            showSpeedDialog -> showSpeedDialog = false
+            showPlaylistQueue -> showPlaylistQueue = false
+            showMoreSheet -> showMoreSheet = false
+            showSleepTimerDialog -> showSleepTimerDialog = false
+            showEqualizerDialog -> showEqualizerDialog = false
+            showAudioTrackDialog -> showAudioTrackDialog = false
+            else -> onBack()
         }
     }
 
@@ -342,6 +349,7 @@ fun XVideoPlayerScreen(
                     if (pv.player != exoPlayer) {
                         pv.player = exoPlayer
                     }
+                    playerViewRef = pv
                 },
                 modifier = Modifier
                     .fillMaxSize()

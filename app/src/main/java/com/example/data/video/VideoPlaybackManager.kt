@@ -242,6 +242,8 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
             _currentSubtitleName.value = "None"
         }
 
+        player.stop()
+        player.clearMediaItems()
         player.setMediaItem(mediaItemBuilder.build())
         player.prepare()
 
@@ -374,14 +376,7 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
 
     fun closeFullScreen() {
         _isFullScreenOpen.value = false
-        if (_isBackgroundAudioEnabled.value && _currentVideo.value != null) {
-            // Continue playing in background! Show in-app mini player & rich notification
-            _isMiniPlayerVisible.value = true
-            VideoPlaybackService.start(appContext)
-        } else {
-            // Background playback is OFF: user pressed back, so stop playback cleanly!
-            stopPlayback()
-        }
+        stopPlayback()
     }
 
     fun dismissMiniPlayer() {
