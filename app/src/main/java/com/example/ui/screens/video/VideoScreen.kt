@@ -240,19 +240,23 @@ fun VideoScreen(
         }
     }
 
+    val themeManager = remember { com.example.ui.theme.ThemeManager.getInstance(context) }
+    val currentTheme by themeManager.currentTheme.collectAsState()
+    val isLiveTheme = currentTheme.isLiveAnimated
+
     val columnsCount = if (isListView) 1 else 2
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(F2WSurface)
+            .background(if (isLiveTheme) Color.Transparent else F2WSurface)
             .testTag("video_screen_container")
     ) {
         // Fixed / Sticky Top Task Panel for Filter Pills
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(F2WSurface)
+                .background(if (isLiveTheme) Color.Transparent else F2WSurface)
                 .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 2.dp)
         ) {
             // Row 1: [ All Video ] [ Group by Name ] [ Group by Folder ]
@@ -657,7 +661,15 @@ private fun FilterPillButton(
         label = "pill_elevation_${mode.name}"
     )
 
-    val contentColor = if (isSelected) Color.White else Color(0xFFE2F4FA)
+    val isLight = com.example.ui.theme.F2WIsLightTheme
+    val textShadow = com.example.ui.theme.F2WTextShadow
+    val contentColor = if (isSelected) {
+        Color.White
+    } else if (isLight) {
+        Color(0xFF0F172A)
+    } else {
+        Color(0xFFE2F4FA)
+    }
     val pillShape = RoundedCornerShape(percent = 50)
 
     // 3D Bevel Border (Light reflection top-left, darker glass rim bottom-right)
@@ -668,6 +680,16 @@ private fun FilterPillButton(
                 Color(0xFF00E5FF),
                 Color(0xFF0077B6).copy(alpha = 0.60f),
                 Color(0xFF03045E).copy(alpha = 0.90f)
+            ),
+            start = Offset(0f, 0f),
+            end = Offset(200f, 80f)
+        )
+    } else if (isLight) {
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0xFF0284C7).copy(alpha = 0.80f),
+                Color(0xFF38BDF8).copy(alpha = 0.50f),
+                Color(0xFF94A3B8).copy(alpha = 0.40f)
             ),
             start = Offset(0f, 0f),
             end = Offset(200f, 80f)
@@ -692,6 +714,14 @@ private fun FilterPillButton(
                 Color(0xFF00B4D8), // bright wet cyan top
                 Color(0xFF0077B6), // mid ocean cyan
                 Color(0xFF023E8A)  // dark 3D base depth
+            )
+        )
+    } else if (isLight) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xEEFFFFFF), // bright translucent white glass pill
+                Color(0xDDEDF2F7),
+                Color(0xCCDCE5ED)
             )
         )
     } else {
@@ -890,6 +920,7 @@ private fun FilterPillButton(
                 color = contentColor,
                 fontSize = 10.5.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                style = if (textShadow != null) androidx.compose.ui.text.TextStyle(shadow = textShadow) else androidx.compose.ui.text.TextStyle.Default,
                 maxLines = 1
             )
         }

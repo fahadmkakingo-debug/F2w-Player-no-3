@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.ui.theme.F2WCardBorder
 import com.example.ui.theme.F2WCyanPrimary
+import com.example.ui.theme.F2WSurfaceElevated
 import com.example.ui.theme.F2WTextPrimary
 import com.example.ui.theme.F2WTextSecondary
 import com.example.ui.theme.F2WTextTertiary
@@ -82,7 +83,7 @@ fun VideoListCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF1B1E28))
+            .background(F2WSurfaceElevated)
             .border(1.dp, F2WCardBorder.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
             .clickable(
                 interactionSource = interactionSource,

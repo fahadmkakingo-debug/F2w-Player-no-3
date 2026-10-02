@@ -53,14 +53,16 @@ data class F2WThemeColors(
     val cardBorder: Color,
     val primary: Color,
     val primaryDark: Color,
-    val textPrimary: Color = Color.White, // Always pure white
-    val textSecondary: Color = Color(0xFFE2E8F0), // Always clean light off-white
+    val textPrimary: Color = Color.White,
+    val textSecondary: Color = Color(0xFFE2E8F0),
     val textTertiary: Color = Color(0xFFA0AEC0),
     val navBackground: Color,
     val navPillActive: Color,
     val navPillBorder: Color,
     val swatchGradient: Brush,
-    val isSystemAuto: Boolean = false
+    val isSystemAuto: Boolean = false,
+    val isLightTheme: Boolean = false,
+    val textShadow: androidx.compose.ui.graphics.Shadow? = null
 )
 
 object ThemePaletteFactory {
@@ -415,35 +417,41 @@ object ThemePaletteFactory {
     // 21. Live Glass Rain (White Frosted Crystal Glass with Droplets)
     val LiveGlassRain = F2WThemeColors(
         background = Color(0xFFF1F5F9),
-        surface = Color(0xEEFFFFFF),
-        surfaceElevated = Color(0xF2FFFFFF),
-        surfaceHighlight = Color(0xFFE2E8F0),
-        cardBorder = Color(0xFF0284C7),
+        surface = Color(0x33FFFFFF),
+        surfaceElevated = Color(0x55FFFFFF),
+        surfaceHighlight = Color(0x80FFFFFF),
+        cardBorder = Color(0x660284C7),
         primary = Color(0xFF0284C7),
         primaryDark = Color(0xFF0369A1),
         textPrimary = Color(0xFF0F172A),
         textSecondary = Color(0xFF334155),
         textTertiary = Color(0xFF64748B),
-        navBackground = Color(0xF2F8FAFC),
-        navPillActive = Color(0xFFE2E8F0),
+        navBackground = Color(0xCCF8FAFC),
+        navPillActive = Color(0x99E2E8F0),
         navPillBorder = Color(0xFF0284C7),
-        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFE0F2FE), Color(0xFF0284C7)))
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFE0F2FE), Color(0xFF0284C7))),
+        isLightTheme = true,
+        textShadow = androidx.compose.ui.graphics.Shadow(
+            color = Color(0x40000000),
+            offset = androidx.compose.ui.geometry.Offset(1f, 1.5f),
+            blurRadius = 3f
+        )
     )
 
     // 22. Live Adventure Quest (Lush Nature Forest, Trees, Flowers, Leaves)
     val LiveAdventure = F2WThemeColors(
         background = Color(0xFF041A11),
-        surface = Color(0xDD08291B),
-        surfaceElevated = Color(0xDD0D3825),
-        surfaceHighlight = Color(0xDD144A32),
-        cardBorder = Color(0xFF10B981),
+        surface = Color(0x4408291B),
+        surfaceElevated = Color(0x660D3825),
+        surfaceHighlight = Color(0x88144A32),
+        cardBorder = Color(0x9910B981),
         primary = Color(0xFFFFB703),
         primaryDark = Color(0xFF10B981),
         textPrimary = Color.White,
         textSecondary = Color(0xFFE2E8F0),
         textTertiary = Color(0xFFA0AEC0),
-        navBackground = Color(0xF0041A11),
-        navPillActive = Color(0xFF144A32),
+        navBackground = Color(0xCC041A11),
+        navPillActive = Color(0x88144A32),
         navPillBorder = Color(0xFFFFB703),
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFFB703), Color(0xFF10B981), Color(0xFF041A11)))
     )
@@ -451,17 +459,17 @@ object ThemePaletteFactory {
     // 23. Live Metropolis (Illuminated City Skyline with Changing Building Lights)
     val LiveMetropolis = F2WThemeColors(
         background = Color(0xFF0A0F1D),
-        surface = Color(0xDD111827),
-        surfaceElevated = Color(0xDD1F2937),
-        surfaceHighlight = Color(0xDD374151),
-        cardBorder = Color(0xFFFFC107),
+        surface = Color(0x44111827),
+        surfaceElevated = Color(0x661F2937),
+        surfaceHighlight = Color(0x88374151),
+        cardBorder = Color(0x99FFC107),
         primary = Color(0xFFFFC107),
         primaryDark = Color(0xFF00E5FF),
         textPrimary = Color.White,
         textSecondary = Color(0xFFE2E8F0),
         textTertiary = Color(0xFFA0AEC0),
-        navBackground = Color(0xF00A0F1D),
-        navPillActive = Color(0xFF374151),
+        navBackground = Color(0xCC0A0F1D),
+        navPillActive = Color(0x88374151),
         navPillBorder = Color(0xFFFFC107),
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFFC107), Color(0xFF00E5FF), Color(0xFF0A0F1D)))
     )
@@ -469,17 +477,17 @@ object ThemePaletteFactory {
     // 24. Live Highway Drive (Cruising Car on Scenic Sunset Highway)
     val LiveHighwayDrive = F2WThemeColors(
         background = Color(0xFF1A0A24),
-        surface = Color(0xDD270E36),
-        surfaceElevated = Color(0xDD3B1452),
-        surfaceHighlight = Color(0xDD521C72),
-        cardBorder = Color(0xFFFF5E00),
+        surface = Color(0x44270E36),
+        surfaceElevated = Color(0x663B1452),
+        surfaceHighlight = Color(0x88521C72),
+        cardBorder = Color(0x99FF5E00),
         primary = Color(0xFFFF5E00),
         primaryDark = Color(0xFFFF007A),
         textPrimary = Color.White,
         textSecondary = Color(0xFFE2E8F0),
         textTertiary = Color(0xFFA0AEC0),
-        navBackground = Color(0xF01A0A24),
-        navPillActive = Color(0xFF521C72),
+        navBackground = Color(0xCC1A0A24),
+        navPillActive = Color(0x88521C72),
         navPillBorder = Color(0xFFFF5E00),
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFF5E00), Color(0xFFFF007A), Color(0xFF7B2CBF)))
     )
@@ -487,17 +495,17 @@ object ThemePaletteFactory {
     // 25. Live Golden Fields (Rolling Meadow Hills, Waving Crops & Sunbeams)
     val LiveGoldenFields = F2WThemeColors(
         background = Color(0xFF101A0B),
-        surface = Color(0xDD192911),
-        surfaceElevated = Color(0xDD263D1A),
-        surfaceHighlight = Color(0xDD365525),
-        cardBorder = Color(0xFFE9C46A),
+        surface = Color(0x44192911),
+        surfaceElevated = Color(0x66263D1A),
+        surfaceHighlight = Color(0x88365525),
+        cardBorder = Color(0x99E9C46A),
         primary = Color(0xFFE9C46A),
         primaryDark = Color(0xFF52B788),
         textPrimary = Color.White,
         textSecondary = Color(0xFFE2E8F0),
         textTertiary = Color(0xFFA0AEC0),
-        navBackground = Color(0xF0101A0B),
-        navPillActive = Color(0xFF365525),
+        navBackground = Color(0xCC101A0B),
+        navPillActive = Color(0x88365525),
         navPillBorder = Color(0xFFE9C46A),
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFFE9C46A), Color(0xFF52B788), Color(0xFF101A0B)))
     )
@@ -505,16 +513,16 @@ object ThemePaletteFactory {
     // 26. Live Wildlife Safari (Walking Deer, Birds in Flight, Savanna Twilight)
     val LiveWildlifeSafari = F2WThemeColors(
         background = Color(0xFF1C0D05),
-        surface = Color(0xDD2B1408),
-        surfaceElevated = Color(0xDD3D1D0C),
-        surfaceHighlight = Color(0xDD572A12),
-        cardBorder = Color(0xFFF4A261),
+        surface = Color(0x442B1408),
+        surfaceElevated = Color(0x663D1D0C),
+        surfaceHighlight = Color(0x88572A12),
+        cardBorder = Color(0x99F4A261),
         primary = Color(0xFFF4A261),
         primaryDark = Color(0xFFE76F51),
         textPrimary = Color.White,
         textSecondary = Color(0xFFE2E8F0),
         textTertiary = Color(0xFFA0AEC0),
-        navBackground = Color(0xF01C0D05),
+        navBackground = Color(0xCC1C0D05),
         navPillActive = Color(0xFF572A12),
         navPillBorder = Color(0xFFF4A261),
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFFF4A261), Color(0xFFE76F51), Color(0xFF1C0D05)))
@@ -523,16 +531,16 @@ object ThemePaletteFactory {
     // 27. Live Neon Aurora (Dynamic undulating Northern Lights & cosmic dust)
     val LiveAuroraWave = F2WThemeColors(
         background = Color(0xFF020912),
-        surface = Color(0xDD041824),
-        surfaceElevated = Color(0xDD08273A),
-        surfaceHighlight = Color(0xDD0E3C56),
-        cardBorder = Color(0xFF00F5D4),
+        surface = Color(0x44041824),
+        surfaceElevated = Color(0x6608273A),
+        surfaceHighlight = Color(0x880E3C56),
+        cardBorder = Color(0x9900F5D4),
         primary = Color(0xFF00F5D4),
         primaryDark = Color(0xFF7B2CBF),
         textPrimary = Color.White,
         textSecondary = Color(0xFFE2E8F0),
         textTertiary = Color(0xFFA0AEC0),
-        navBackground = Color(0xF0020912),
+        navBackground = Color(0xCC020912),
         navPillActive = Color(0xFF0E3C56),
         navPillBorder = Color(0xFF00F5D4),
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFF00F5D4), Color(0xFF39FF14), Color(0xFF7B2CBF), Color(0xFF020912)))

@@ -44,17 +44,27 @@ val F2WCyanDark: Color
 val F2WTextPrimary: Color
     @Composable
     @ReadOnlyComposable
-    get() = Color.White
+    get() = LocalF2WColors.current.textPrimary
 
 val F2WTextSecondary: Color
     @Composable
     @ReadOnlyComposable
-    get() = Color(0xFFE2E8F0)
+    get() = LocalF2WColors.current.textSecondary
 
 val F2WTextTertiary: Color
     @Composable
     @ReadOnlyComposable
-    get() = Color(0xFFA0AEC0)
+    get() = LocalF2WColors.current.textTertiary
+
+val F2WTextShadow: androidx.compose.ui.graphics.Shadow?
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalF2WColors.current.textShadow
+
+val F2WIsLightTheme: Boolean
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalF2WColors.current.isLightTheme
 
 val F2WNavBackground: Color
     @Composable

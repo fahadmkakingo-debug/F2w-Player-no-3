@@ -55,7 +55,7 @@ fun LiveThemeBackground(
 }
 
 // -------------------------------------------------------------
-// 1. WHITE FROSTED GLASS RAIN (Water droplets on white glass)
+// 1. WHITE FROSTED GLASS RAIN (Water droplets & sliding streams on white glass)
 // -------------------------------------------------------------
 private data class WhiteRainDrop(
     val xNorm: Float,
@@ -65,6 +65,15 @@ private data class WhiteRainDrop(
     val alpha: Float,
     val phaseOffset: Float,
     val isHeavy: Boolean
+)
+
+private data class WhiteSlidingDrop(
+    val xNorm: Float,
+    val speedNorm: Float,
+    val radiusPx: Float,
+    val trailLengthPx: Float,
+    val phaseOffset: Float,
+    val wobbleFreq: Float
 )
 
 private data class WhiteGlassDewDrop(
@@ -82,10 +91,20 @@ fun LiveWhiteGlassRainCanvas(modifier: Modifier = Modifier) {
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3200, easing = LinearEasing),
+            animation = tween(durationMillis = 2600, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "rain_progress"
+    )
+
+    val slideProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 5200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "slide_progress"
     )
 
     val shimmerProgress by infiniteTransition.animateFloat(
@@ -99,28 +118,47 @@ fun LiveWhiteGlassRainCanvas(modifier: Modifier = Modifier) {
     )
 
     val rainParticles = remember {
-        List(50) { index ->
+        List(60) { index ->
             val randA = ((index * 37 + 13) % 100) / 100f
             val randB = ((index * 59 + 71) % 100) / 100f
             val randC = ((index * 83 + 29) % 100) / 100f
-            val isHeavy = index % 4 == 0
+            val isHeavy = index % 3 == 0
             WhiteRainDrop(
                 xNorm = randA,
-                speedNorm = 0.75f + randB * 0.9f,
-                lengthNorm = if (isHeavy) 0.08f + randC * 0.05f else 0.04f + randC * 0.03f,
-                widthPx = if (isHeavy) 2.4f else 1.4f,
-                alpha = if (isHeavy) 0.75f else 0.45f + randB * 0.35f,
-                phaseOffset = (index.toFloat() / 50f) + randC * 0.2f,
+                speedNorm = 0.8f + randB * 1.1f,
+                lengthNorm = if (isHeavy) 0.09f + randC * 0.06f else 0.045f + randC * 0.035f,
+                widthPx = if (isHeavy) 2.8f else 1.6f,
+                alpha = if (isHeavy) 0.85f else 0.50f + randB * 0.35f,
+                phaseOffset = (index.toFloat() / 60f) + randC * 0.2f,
                 isHeavy = isHeavy
             )
         }
     }
 
+    // Glistening water droplets that slide & trickle slowly down the white glass (yanayochuruzika)
+    val slidingDrops = remember {
+        List(14) { index ->
+            val rx = ((index * 47 + 19) % 94 + 3) / 100f
+            val spd = 0.55f + (((index * 31 + 7) % 50) / 100f)
+            val rad = 3.5f + ((index * 13) % 4) * 1.2f
+            val trailLen = 45f + ((index * 23) % 40)
+            val wobble = 1.5f + (index % 3) * 0.8f
+            WhiteSlidingDrop(
+                xNorm = rx,
+                speedNorm = spd,
+                radiusPx = rad,
+                trailLengthPx = trailLen,
+                phaseOffset = (index.toFloat() / 14f),
+                wobbleFreq = wobble
+            )
+        }
+    }
+
     val dewDrops = remember {
-        List(30) { index ->
+        List(35) { index ->
             val rx = ((index * 43 + 17) % 100) / 100f
             val ry = ((index * 79 + 31) % 100) / 100f
-            val rad = 2.8f + (((index * 31) % 10) / 10f) * 3.5f
+            val rad = 2.5f + (((index * 31) % 10) / 10f) * 3.5f
             WhiteGlassDewDrop(
                 xNorm = rx,
                 yNorm = ry,
@@ -150,37 +188,37 @@ fun LiveWhiteGlassRainCanvas(modifier: Modifier = Modifier) {
         drawRect(
             brush = Brush.linearGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = 0.45f),
+                    Color.White.copy(alpha = 0.55f),
                     Color.Transparent,
-                    Color.White.copy(alpha = 0.3f),
+                    Color.White.copy(alpha = 0.35f),
                     Color.Transparent
                 ),
                 start = Offset(0f, 0f),
-                end = Offset(w, h * 0.7f)
+                end = Offset(w, h * 0.75f)
             )
         )
 
-        // Draw stationary glistening condensation dew droplets
+        // 1. Draw stationary glistening condensation dew droplets on the glass
         dewDrops.forEach { dew ->
             val cx = dew.xNorm * w
             val cy = dew.yNorm * h
             val pulse = (sin(shimmerProgress + dew.pulsePhase) + 1f) / 2f
             val radius = dew.radiusPx
 
-            // Subtle dark shadow for 3D depth
+            // Subtle dark shadow for 3D depth under droplet
             drawCircle(
-                color = Color(0x33000000),
-                radius = radius * 1.15f,
-                center = Offset(cx, cy + radius * 0.35f)
+                color = Color(0x35000000),
+                radius = radius * 1.2f,
+                center = Offset(cx + 0.8f, cy + radius * 0.45f)
             )
 
             // Refractive water dome
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color(0x99E0F2FE),
-                        Color(0x660284C7),
-                        Color(0x330369A1)
+                        Color(0xBBE0F2FE),
+                        Color(0x880284C7),
+                        Color(0x440369A1)
                     ),
                     center = Offset(cx, cy),
                     radius = radius
@@ -189,22 +227,83 @@ fun LiveWhiteGlassRainCanvas(modifier: Modifier = Modifier) {
                 center = Offset(cx, cy)
             )
 
-            // Specular reflection glint
+            // Specular reflection glint on top-left of droplet
             drawCircle(
-                color = Color.White.copy(alpha = 0.85f + pulse * 0.15f),
-                radius = radius * 0.40f,
-                center = Offset(cx - radius * 0.3f, cy - radius * 0.3f)
+                color = Color.White.copy(alpha = 0.90f + pulse * 0.10f),
+                radius = radius * 0.42f,
+                center = Offset(cx - radius * 0.32f, cy - radius * 0.32f)
             )
         }
 
-        // Draw falling rain streaks from top to bottom
+        // 2. Draw sliding trickling droplets with wet glistening tracks (Matone yanayochuruzika)
+        slidingDrops.forEach { drop ->
+            val dropTime = (slideProgress * drop.speedNorm + drop.phaseOffset) % 1f
+            val cy = (dropTime * (h + 120f)) - 60f
+            val wobbleX = sin(dropTime * 6.28f * drop.wobbleFreq) * 6f
+            val cx = (drop.xNorm * w) + wobbleX
+            val radius = drop.radiusPx
+
+            if (cy > -30f && cy < h + 30f) {
+                // Wet trail / rivulet left behind the sliding water droplet
+                val trailStart = (cy - drop.trailLengthPx).coerceAtLeast(0f)
+                if (cy > trailStart) {
+                    drawLine(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color(0x330284C7),
+                                Color(0x770284C7),
+                                Color(0xAA0369A1)
+                            ),
+                            startY = trailStart,
+                            endY = cy
+                        ),
+                        start = Offset(cx - (wobbleX * 0.4f), trailStart),
+                        end = Offset(cx, cy),
+                        strokeWidth = radius * 0.9f,
+                        cap = StrokeCap.Round
+                    )
+                }
+
+                // Droplet 3D base shadow
+                drawCircle(
+                    color = Color(0x40000000),
+                    radius = radius * 1.25f,
+                    center = Offset(cx + 0.9f, cy + (radius * 0.5f))
+                )
+
+                // Elongated liquid teardrop body
+                drawOval(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xCCE0F2FE),
+                            Color(0x990284C7),
+                            Color(0x660369A1)
+                        ),
+                        center = Offset(cx, cy),
+                        radius = radius * 1.2f
+                    ),
+                    topLeft = Offset(cx - radius, cy - (radius * 1.3f)),
+                    size = Size(radius * 2f, radius * 2.6f)
+                )
+
+                // Specular highlight pin-point on liquid droplet
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.95f),
+                    radius = radius * 0.45f,
+                    center = Offset(cx - (radius * 0.35f), cy - (radius * 0.45f))
+                )
+            }
+        }
+
+        // 3. Draw fast falling rain streaks from top to bottom
         rainParticles.forEach { drop ->
             val particleTime = (rainProgress * drop.speedNorm + drop.phaseOffset) % 1f
-            val startY = (particleTime * (h + 150f)) - 100f
+            val startY = (particleTime * (h + 160f)) - 100f
             val streakLen = drop.lengthNorm * h
             val endY = startY + streakLen
             val startX = drop.xNorm * w
-            val endX = startX - (streakLen * 0.06f)
+            val endX = startX - (streakLen * 0.05f)
 
             if (endY > -20f && startY < h + 20f) {
                 // Streak gradient on white glass
@@ -212,7 +311,7 @@ fun LiveWhiteGlassRainCanvas(modifier: Modifier = Modifier) {
                     brush = Brush.verticalGradient(
                         colors = listOf(
                             Color.Transparent,
-                            Color(0x880284C7).copy(alpha = drop.alpha * 0.6f),
+                            Color(0x880284C7).copy(alpha = drop.alpha * 0.65f),
                             Color(0xFF0369A1).copy(alpha = drop.alpha)
                         ),
                         startY = startY,
@@ -227,21 +326,21 @@ fun LiveWhiteGlassRainCanvas(modifier: Modifier = Modifier) {
                 // Droplet head
                 drawCircle(
                     color = Color(0xFF0284C7).copy(alpha = drop.alpha),
-                    radius = drop.widthPx * 1.15f,
+                    radius = drop.widthPx * 1.2f,
                     center = Offset(endX, endY)
                 )
 
-                // Expanding ripple rings
-                if (drop.isHeavy && endY > h * 0.65f) {
-                    val ripplePhase = ((endY - (h * 0.65f)) / (h * 0.35f)).coerceIn(0f, 1f)
-                    val rippleRadius = ripplePhase * 22f
-                    val rippleAlpha = (1f - ripplePhase) * 0.4f
+                // Expanding ripple rings at landing impact
+                if (drop.isHeavy && endY > h * 0.60f) {
+                    val ripplePhase = ((endY - (h * 0.60f)) / (h * 0.40f)).coerceIn(0f, 1f)
+                    val rippleRadius = ripplePhase * 26f
+                    val rippleAlpha = (1f - ripplePhase) * 0.45f
                     if (rippleAlpha > 0.02f) {
                         drawOval(
                             color = Color(0xFF0284C7).copy(alpha = rippleAlpha),
                             topLeft = Offset(endX - rippleRadius, endY - (rippleRadius * 0.35f)),
                             size = Size(rippleRadius * 2f, rippleRadius * 0.7f),
-                            style = Stroke(width = 1.2f)
+                            style = Stroke(width = 1.3f)
                         )
                     }
                 }

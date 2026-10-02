@@ -71,16 +71,10 @@ fun MainScreen(
     // Observe persistent Room cache immediately on startup - never starts empty if DB has items
     val allScannedVideos by scanner.allVideosFlow.collectAsState()
 
-    // Request permissions on first launch only
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) {
-        scanner.startScan(forceFullRescan = false)
-    }
-
     val prefs = remember { context.getSharedPreferences("f2w_app_prefs", Context.MODE_PRIVATE) }
-    val hasSeenWelcome = remember { prefs.getBoolean("has_seen_welcome_screen", false) }
-    var showWelcomeScreen by rememberSaveable { mutableStateOf(!hasSeenWelcome) }
+    var showWelcomeScreen by rememberSaveable { mutableStateOf(true) }
+    val hasCompletedFirstLaunchOnboarding = remember { prefs.getBoolean("has_completed_first_launch_onboarding", false) }
+    var showFirstLaunchPermissionScreen by rememberSaveable { mutableStateOf(!hasCompletedFirstLaunchOnboarding) }
 
     // Start background sync immediately if permission already granted
     LaunchedEffect(Unit) {
@@ -89,28 +83,23 @@ fun MainScreen(
         }
     }
 
-    // When welcome screen finishes, prompt for permission if it's the very first launch
-    LaunchedEffect(showWelcomeScreen) {
-        if (!showWelcomeScreen) {
-            prefs.edit().putBoolean("has_seen_welcome_screen", true).apply()
-            val hasRequestedBefore = prefs.getBoolean("has_prompted_media_permissions", false)
-            val hasAccess = MediaPermissionManager.hasMediaAccess(context, MediaPermissionType.ALL_MEDIA)
-            if (!hasAccess && !hasRequestedBefore) {
-                prefs.edit().putBoolean("has_prompted_media_permissions", true).apply()
-                val required = MediaPermissionManager.getRequiredPermissions(MediaPermissionType.ALL_MEDIA)
-                permissionLauncher.launch(required)
-            } else if (hasAccess) {
-                scanner.startScan(forceFullRescan = false)
-            }
-        }
-    }
-
-    // Welcome Screen with Dramatic Overhead Spotlight Beam
+    // 1. Welcome Screen (Splash screen on launch)
     if (showWelcomeScreen) {
         WelcomeScreen(
             onContinue = {
-                prefs.edit().putBoolean("has_seen_welcome_screen", true).apply()
                 showWelcomeScreen = false
+            }
+        )
+        return
+    }
+
+    // 2. First Launch Black Screen Permission Onboarding (Exclusively on First Launch)
+    if (showFirstLaunchPermissionScreen) {
+        com.example.ui.screens.welcome.FirstLaunchPermissionScreen(
+            onComplete = {
+                prefs.edit().putBoolean("has_completed_first_launch_onboarding", true).apply()
+                showFirstLaunchPermissionScreen = false
+                scanner.startScan(forceFullRescan = false)
             }
         )
         return
@@ -233,7 +222,10 @@ fun MainScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
+                    .padding(
+                        top = innerPadding.calculateTopPadding(),
+                        bottom = (innerPadding.calculateBottomPadding() - 34.dp).coerceAtLeast(0.dp)
+                    )
             ) {
                 // Main Content Area with Smooth Animation
                 AnimatedContent(

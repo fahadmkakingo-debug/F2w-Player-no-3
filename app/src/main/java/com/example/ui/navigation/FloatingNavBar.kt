@@ -51,9 +51,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.sin
 
+import com.example.ui.theme.F2WCardBorder
+import com.example.ui.theme.F2WCyanPrimary
+import com.example.ui.theme.F2WNavBackground
+
 /**
  * Modern floating pill navigation bar with transparent glassmorphism styling
  * and an animated liquid water wave shimmer effect inside the curved capsule.
+ * The curved pill card protrudes upward so its top half floats freely over content,
+ * while only the bottom half has the docking background behind it.
  */
 @Composable
 fun FloatingNavBar(
@@ -65,21 +71,48 @@ fun FloatingNavBar(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
             .testTag("floating_bottom_navigation_bar"),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.BottomCenter
     ) {
-        // Transparent Frosted Glass Capsule Container with Curved Edges
+        // 1. Bottom-Half Background Layer (Only covers bottom half behind the card)
         Box(
             modifier = Modifier
+                .fillMaxWidth()
+                .height(34.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            F2WNavBackground.copy(alpha = 0.65f),
+                            F2WNavBackground.copy(alpha = 0.95f)
+                        )
+                    )
+                )
+                .border(
+                    width = 0.6.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            F2WCardBorder.copy(alpha = 0.35f),
+                            Color.Transparent
+                        )
+                    ),
+                    shape = androidx.compose.ui.graphics.RectangleShape
+                )
+                .align(Alignment.BottomCenter)
+        )
+
+        // 2. The Protruding Curved Capsule Pill Card (Carve card ya buttons imetokeza kwa juu)
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 5.dp)
                 .widthIn(max = 460.dp)
                 .fillMaxWidth()
-                .height(68.dp)
+                .height(64.dp)
                 .shadow(
-                    elevation = 20.dp,
+                    elevation = 18.dp,
                     shape = RoundedCornerShape(percent = 50),
-                    spotColor = Color(0x7700E5FF),
-                    ambientColor = Color(0x440088FF)
+                    spotColor = F2WCyanPrimary.copy(alpha = 0.50f),
+                    ambientColor = Color.Black.copy(alpha = 0.40f)
                 )
                 .clip(RoundedCornerShape(percent = 50))
                 // Glass Base Layer (Translucent Frosted Tint)
@@ -93,12 +126,12 @@ fun FloatingNavBar(
                 )
                 // Specular Glass Border Highlight
                 .border(
-                    width = 1.4.dp,
+                    width = 1.3.dp,
                     brush = Brush.linearGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.40f), // Glass top reflection
-                            Color(0x8000E5FF),               // Cyan glass glow
-                            Color.White.copy(alpha = 0.12f),
+                            Color.White.copy(alpha = 0.45f), // Glass top reflection
+                            F2WCyanPrimary.copy(alpha = 0.70f), // Cyan glass glow
+                            Color.White.copy(alpha = 0.15f),
                             Color(0x400088FF)
                         ),
                         start = Offset(0f, 0f),
@@ -118,11 +151,11 @@ fun FloatingNavBar(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(30.dp)
+                    .height(28.dp)
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.14f),
+                                Color.White.copy(alpha = 0.15f),
                                 Color.Transparent
                             )
                         )
@@ -133,7 +166,7 @@ fun FloatingNavBar(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {

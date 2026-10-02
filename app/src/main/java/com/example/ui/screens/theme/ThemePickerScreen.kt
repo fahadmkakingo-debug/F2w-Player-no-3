@@ -652,12 +652,14 @@ private fun MiniFolderRow(
                     text = title,
                     color = colors.textPrimary,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    style = if (colors.textShadow != null) androidx.compose.ui.text.TextStyle(shadow = colors.textShadow) else androidx.compose.ui.text.TextStyle.Default
                 )
                 Text(
                     text = subtitle,
                     color = colors.textTertiary,
-                    fontSize = 9.sp
+                    fontSize = 9.sp,
+                    style = if (colors.textShadow != null) androidx.compose.ui.text.TextStyle(shadow = colors.textShadow) else androidx.compose.ui.text.TextStyle.Default
                 )
             }
         }
