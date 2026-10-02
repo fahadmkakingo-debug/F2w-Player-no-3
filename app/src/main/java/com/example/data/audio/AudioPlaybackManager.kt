@@ -352,9 +352,14 @@ class AudioPlaybackManager private constructor(private val appContext: Context) 
 
     fun dismissMiniPlayer() {
         exoPlayer?.stop()
+        exoPlayer?.clearMediaItems()
         _isPlaying.value = false
+        _currentTrack.value = null
         _isMiniPlayerVisible.value = false
         _isFullScreenOpen.value = false
+        _currentCoverBitmap.value = null
+        stopProgressUpdates()
+        cancelSleepTimer()
         com.example.service.AudioPlaybackService.stop(appContext)
     }
 

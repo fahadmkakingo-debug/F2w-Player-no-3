@@ -77,6 +77,19 @@ class AudioPlaybackService : Service() {
         }
 
         serviceScope.launch {
+            audioManager.isMiniPlayerVisible.collectLatest { isVisible ->
+                if (!isVisible) {
+                    stopForegroundInternal()
+                    val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    nm.cancel(NOTIFICATION_ID)
+                    stopSelf()
+                } else {
+                    updateNotificationState()
+                }
+            }
+        }
+
+        serviceScope.launch {
             audioManager.currentCoverBitmap.collectLatest {
                 updateNotificationState()
             }
@@ -87,8 +100,10 @@ class AudioPlaybackService : Service() {
         val audioManager = AudioPlaybackManager.getInstance(applicationContext)
         val track = audioManager.currentTrack.value
 
-        if (track == null) {
+        if (track == null || !audioManager.isMiniPlayerVisible.value) {
             stopForegroundInternal()
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(NOTIFICATION_ID)
             stopSelf()
             return
         }
@@ -192,6 +207,7 @@ class AudioPlaybackService : Service() {
             .setContentTitle(title)
             .setContentText(subtitle.ifBlank { "F2W Audio Player" })
             .setContentIntent(pOpen)
+            .setDeleteIntent(pStop)
             .setOngoing(isPlaying)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -263,11 +279,10 @@ class AudioPlaybackService : Service() {
         }
 
         fun stop(context: Context) {
-            val intent = Intent(context, AudioPlaybackService::class.java).apply {
-                action = ACTION_STOP
-            }
             try {
-                context.startService(intent)
+                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                nm?.cancel(NOTIFICATION_ID)
+                context.stopService(Intent(context, AudioPlaybackService::class.java))
             } catch (e: Exception) {
                 e.printStackTrace()
             }

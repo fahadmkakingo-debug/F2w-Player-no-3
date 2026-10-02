@@ -11,8 +11,10 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -69,8 +71,10 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -90,6 +94,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -104,6 +110,8 @@ import com.example.ui.theme.F2WVioletAccent
 fun XPlayerTopBar(
     title: String,
     decoderMode: String,
+    isQuickControlsExpanded: Boolean = false,
+    onToggleQuickControls: () -> Unit = {},
     onBackClick: () -> Unit,
     onDecoderClick: () -> Unit,
     onSubtitlesClick: () -> Unit,
@@ -125,7 +133,7 @@ fun XPlayerTopBar(
             )
             .statusBarsPadding()
             .displayCutoutPadding()
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -134,12 +142,15 @@ fun XPlayerTopBar(
             // Back Button
             IconButton(
                 onClick = onBackClick,
-                modifier = Modifier.testTag("player_back_btn")
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("player_back_btn")
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Rudi Nyuma",
-                    tint = Color.White
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
@@ -148,7 +159,7 @@ fun XPlayerTopBar(
                 text = title,
                 color = Color.White,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
@@ -163,7 +174,7 @@ fun XPlayerTopBar(
                     .clip(RoundedCornerShape(6.dp))
                     .background(Color.White.copy(alpha = 0.12f))
                     .clickable(onClick = onDecoderClick)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(horizontal = 6.dp, vertical = 3.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -171,45 +182,73 @@ fun XPlayerTopBar(
                         imageVector = Icons.Filled.HighQuality,
                         contentDescription = "Decoder",
                         tint = F2WCyanPrimary,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
                     Text(
                         text = decoderMode,
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
 
             // 2. Subtitles & Audio [CC]
-            IconButton(onClick = onSubtitlesClick) {
+            IconButton(
+                onClick = onSubtitlesClick,
+                modifier = Modifier.size(38.dp)
+            ) {
                 Icon(
                     imageVector = Icons.Filled.ClosedCaption,
                     contentDescription = "Subtitles na Sauti",
                     tint = Color.White,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
             // 3. Playlist Queue
-            IconButton(onClick = onPlaylistClick) {
+            IconButton(
+                onClick = onPlaylistClick,
+                modifier = Modifier.size(38.dp)
+            ) {
                 Icon(
                     imageVector = Icons.Filled.QueueMusic,
                     contentDescription = "Orodha ya Video",
                     tint = Color.White,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
-            // 4. More Options
-            IconButton(onClick = onMoreClick) {
+            // 4. Quick Tools / See More Buttons Toggle
+            IconButton(
+                onClick = onToggleQuickControls,
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isQuickControlsExpanded) F2WCyanPrimary.copy(alpha = 0.28f)
+                        else Color.Transparent
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Tune,
+                    contentDescription = "Vifaa na Chaguo Zaidi (Quick Tools)",
+                    tint = if (isQuickControlsExpanded) F2WCyanPrimary else Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // 5. More Options Sheet
+            IconButton(
+                onClick = onMoreClick,
+                modifier = Modifier.size(38.dp)
+            ) {
                 Icon(
                     imageVector = Icons.Filled.MoreVert,
                     contentDescription = "Chaguo Zaidi",
                     tint = Color.White,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -227,6 +266,7 @@ fun XPlayerQuickControlsRow(
     aspectRatioText: String,
     speedText: String,
     decoderMode: String,
+    onInteraction: () -> Unit = {},
     onOrientationToggle: () -> Unit,
     onMuteToggle: () -> Unit,
     onBackgroundAudioToggle: () -> Unit,
@@ -247,13 +287,28 @@ fun XPlayerQuickControlsRow(
 ) {
     val scrollState = rememberScrollState()
 
+    // Keep controls alive while user is scrolling or touching this row
+    LaunchedEffect(scrollState.isScrollInProgress) {
+        if (scrollState.isScrollInProgress) {
+            onInteraction()
+        }
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .displayCutoutPadding()
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                        onInteraction()
+                    }
+                }
+            }
             .horizontalScroll(scrollState)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 1. Rotation Lock
@@ -261,7 +316,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.ScreenRotation,
             label = if (isOrientationLocked) "Locked" else "Rotate",
             isActive = isOrientationLocked,
-            onClick = onOrientationToggle,
+            onClick = {
+                onInteraction()
+                onOrientationToggle()
+            },
             contentDescription = "Mzunguko wa Skrini"
         )
 
@@ -270,7 +328,10 @@ fun XPlayerQuickControlsRow(
             icon = if (isMuted) Icons.Filled.VolumeMute else Icons.Filled.VolumeUp,
             label = if (isMuted) "Muted" else "Mute",
             isActive = isMuted,
-            onClick = onMuteToggle,
+            onClick = {
+                onInteraction()
+                onMuteToggle()
+            },
             contentDescription = "Sauti"
         )
 
@@ -279,7 +340,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.Headphones,
             label = "BG Play",
             isActive = isBackgroundAudio,
-            onClick = onBackgroundAudioToggle,
+            onClick = {
+                onInteraction()
+                onBackgroundAudioToggle()
+            },
             contentDescription = "Background Audio Play"
         )
 
@@ -288,7 +352,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.PictureInPictureAlt,
             label = "Pop-up",
             isActive = false,
-            onClick = onPipClick,
+            onClick = {
+                onInteraction()
+                onPipClick()
+            },
             contentDescription = "Pop-up / Floating Window (PiP)"
         )
 
@@ -297,7 +364,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.DarkMode,
             label = "Night",
             isActive = isNightMode,
-            onClick = onNightModeToggle,
+            onClick = {
+                onInteraction()
+                onNightModeToggle()
+            },
             contentDescription = "Kinga ya Macho (Night Mode)"
         )
 
@@ -306,7 +376,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.Speed,
             label = speedText,
             isActive = speedText != "1X" && speedText != "1.0X",
-            onClick = onSpeedClick,
+            onClick = {
+                onInteraction()
+                onSpeedClick()
+            },
             contentDescription = "Kasi ya Video"
         )
 
@@ -315,7 +388,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.AspectRatio,
             label = aspectRatioText,
             isActive = aspectRatioText != "Fit",
-            onClick = onAspectRatioClick,
+            onClick = {
+                onInteraction()
+                onAspectRatioClick()
+            },
             contentDescription = "Ukubwa wa Skrini (Aspect Ratio)"
         )
 
@@ -324,7 +400,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.Timer,
             label = "Timer",
             isActive = false,
-            onClick = onSleepTimerClick,
+            onClick = {
+                onInteraction()
+                onSleepTimerClick()
+            },
             contentDescription = "Kipima Muda cha Kulala"
         )
 
@@ -333,7 +412,10 @@ fun XPlayerQuickControlsRow(
             icon = if (abRepeatStateText.isNotEmpty()) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
             label = if (abRepeatStateText.isNotEmpty()) "Repeat $abRepeatStateText" else "A-B Loop",
             isActive = abRepeatStateText.isNotEmpty(),
-            onClick = onABRepeatClick,
+            onClick = {
+                onInteraction()
+                onABRepeatClick()
+            },
             contentDescription = "Kurudia Sehemu A-B"
         )
 
@@ -342,7 +424,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.CameraAlt,
             label = "Capture",
             isActive = false,
-            onClick = onScreenshotClick,
+            onClick = {
+                onInteraction()
+                onScreenshotClick()
+            },
             contentDescription = "Piga Picha ya Skrini (Screenshot)"
         )
 
@@ -351,7 +436,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.GraphicEq,
             label = "Equalizer",
             isActive = false,
-            onClick = onEqualizerClick,
+            onClick = {
+                onInteraction()
+                onEqualizerClick()
+            },
             contentDescription = "Equalizer na Bass Boost"
         )
 
@@ -360,7 +448,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.Audiotrack,
             label = "Audio",
             isActive = false,
-            onClick = onAudioTrackClick,
+            onClick = {
+                onInteraction()
+                onAudioTrackClick()
+            },
             contentDescription = "Lugha ya Sauti"
         )
 
@@ -369,7 +460,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.ClosedCaption,
             label = "Subtitles",
             isActive = false,
-            onClick = onSubtitlesClick,
+            onClick = {
+                onInteraction()
+                onSubtitlesClick()
+            },
             contentDescription = "Manukuu (Subtitles)"
         )
 
@@ -378,7 +472,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.Flip,
             label = if (isMirrored) "Mirrored" else "Mirror",
             isActive = isMirrored,
-            onClick = onMirrorToggle,
+            onClick = {
+                onInteraction()
+                onMirrorToggle()
+            },
             contentDescription = "Geuza Video (Mirror Mode)"
         )
 
@@ -387,7 +484,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.Lock,
             label = "Lock",
             isActive = false,
-            onClick = onLockClick,
+            onClick = {
+                onInteraction()
+                onLockClick()
+            },
             contentDescription = "Funga Skrini (Kid Lock)"
         )
 
@@ -396,7 +496,10 @@ fun XPlayerQuickControlsRow(
             icon = Icons.Filled.HighQuality,
             label = decoderMode,
             isActive = decoderMode == "HW",
-            onClick = onDecoderClick,
+            onClick = {
+                onInteraction()
+                onDecoderClick()
+            },
             contentDescription = "Decoder Mode (HW/SW)"
         )
     }
@@ -412,19 +515,19 @@ private fun QuickPillButton(
 ) {
     Box(
         modifier = Modifier
-            .height(38.dp)
-            .clip(RoundedCornerShape(19.dp))
+            .height(32.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(
                 if (isActive) F2WCyanPrimary.copy(alpha = 0.28f)
-                else Color(0x881E1F24)
+                else Color(0x991E1F24)
             )
             .border(
                 1.dp,
                 if (isActive) F2WCyanPrimary else Color.White.copy(alpha = 0.22f),
-                RoundedCornerShape(19.dp)
+                RoundedCornerShape(16.dp)
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 11.dp),
+            .padding(horizontal = 9.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -432,14 +535,14 @@ private fun QuickPillButton(
                 imageVector = icon,
                 contentDescription = contentDescription,
                 tint = if (isActive) F2WCyanPrimary else Color.White,
-                modifier = Modifier.size(17.dp)
+                modifier = Modifier.size(15.dp)
             )
             if (label.isNotEmpty()) {
-                Spacer(modifier = Modifier.width(5.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = label,
                     color = if (isActive) F2WCyanPrimary else Color.White,
-                    fontSize = 11.5.sp,
+                    fontSize = 11.sp,
                     fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
                 )
             }

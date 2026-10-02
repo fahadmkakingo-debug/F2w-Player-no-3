@@ -199,7 +199,7 @@ fun AudioMiniPlayerBar(
                     )
                 }
 
-                // Right: Play/Pause and Queue Button
+                // Right: Play/Pause, Queue and Close Button
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = { audioManager.togglePlayPause() },
@@ -226,6 +226,20 @@ fun AudioMiniPlayerBar(
                             contentDescription = "Orodha ya Nyimbo",
                             tint = Color.White.copy(alpha = 0.8f),
                             modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { audioManager.dismissMiniPlayer() },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("mini_player_close_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Funga Mini Player",
+                            tint = Color.White.copy(alpha = 0.8f),
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
