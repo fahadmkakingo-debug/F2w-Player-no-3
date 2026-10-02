@@ -516,26 +516,15 @@ class LocalVideoScanner(private val context: Context) {
             }
         } catch (_: Exception) {}
 
-        // 2. Direct storage traversal for .dd0 files across external and internal storage locations
+        // 2. Direct fast targeted scan of public media directories (max depth 2, max 80 dirs, max 1000ms timeout)
         try {
             val searchRoots = LinkedHashSet<File>()
-            Environment.getExternalStorageDirectory()?.let { searchRoots.add(it) }
-            val emulatedRoot = File("/storage/emulated/0")
-            if (emulatedRoot.exists() && emulatedRoot.isDirectory) {
-                searchRoots.add(emulatedRoot)
-            }
-            val sdCardRoot = File("/sdcard")
-            if (sdCardRoot.exists() && sdCardRoot.isDirectory) {
-                searchRoots.add(sdCardRoot)
-            }
-
             listOf(
                 Environment.DIRECTORY_MOVIES,
                 Environment.DIRECTORY_DOWNLOADS,
                 Environment.DIRECTORY_DCIM,
                 Environment.DIRECTORY_DOCUMENTS,
-                Environment.DIRECTORY_PICTURES,
-                Environment.DIRECTORY_MUSIC
+                Environment.DIRECTORY_PICTURES
             ).forEach { dirType ->
                 try {
                     Environment.getExternalStoragePublicDirectory(dirType)?.let {
@@ -544,23 +533,24 @@ class LocalVideoScanner(private val context: Context) {
                 } catch (_: Exception) {}
             }
 
+            val startTime = System.currentTimeMillis()
+            var dirCount = 0
             val visitedDirs = HashSet<String>()
 
             fun walk(dir: File, depth: Int) {
-                if (depth > 8 || !dir.exists() || !dir.isDirectory) return
+                if (depth > 2 || dirCount > 80 || System.currentTimeMillis() - startTime > 1000) return
+                if (!dir.exists() || !dir.isDirectory) return
+
                 val canonical = try { dir.canonicalPath } catch (_: Exception) { dir.absolutePath }
                 if (visitedDirs.contains(canonical)) return
                 visitedDirs.add(canonical)
+                dirCount++
 
                 val dirName = dir.name
-                if (dirName.startsWith(".") || dirName.equals("lost.dir", ignoreCase = true)) {
-                    return
-                }
-                // Skip Android/data and Android/obb for performance and permissions, but allow Android/media
+                if (dirName.startsWith(".") || dirName.equals("lost.dir", ignoreCase = true)) return
+
                 val pathLower = dir.absolutePath.lowercase()
-                if (pathLower.contains("/android/data") || pathLower.contains("/android/obb")) {
-                    return
-                }
+                if (pathLower.contains("/android/data") || pathLower.contains("/android/obb") || pathLower.contains("privatevault")) return
 
                 val children = try { dir.listFiles() } catch (_: Exception) { null } ?: return
                 for (child in children) {
@@ -574,6 +564,7 @@ class LocalVideoScanner(private val context: Context) {
             }
 
             for (root in searchRoots) {
+                if (System.currentTimeMillis() - startTime > 1000) break
                 walk(root, 0)
             }
         } catch (_: Exception) {}
