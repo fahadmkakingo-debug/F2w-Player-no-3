@@ -144,7 +144,6 @@ fun XVideoPlayerScreen(
     var abPointA by remember { mutableStateOf<Long?>(null) }
     var abPointB by remember { mutableStateOf<Long?>(null) }
     var showFlashAnimation by remember { mutableStateOf(false) }
-    var isQuickControlsExpanded by remember { mutableStateOf(false) }
     var lastInteractionTimestamp by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     fun notifyUserInteraction() {
@@ -216,14 +215,13 @@ fun XVideoPlayerScreen(
 
     // Auto-hide controls after 4 seconds of inactivity when not locked,
     // BUT never hide while the user is actively touching or swiping controls!
-    LaunchedEffect(areControlsVisible, isPlaying, isLocked, isQuickControlsExpanded, lastInteractionTimestamp) {
+    LaunchedEffect(areControlsVisible, isPlaying, isLocked, lastInteractionTimestamp) {
         if (areControlsVisible && isPlaying && !isLocked) {
             while (true) {
                 delay(350)
                 val idleDuration = System.currentTimeMillis() - lastInteractionTimestamp
                 if (idleDuration >= 4000L) {
                     areControlsVisible = false
-                    isQuickControlsExpanded = false
                     break
                 }
             }
@@ -256,7 +254,6 @@ fun XVideoPlayerScreen(
                 areControlsVisible = true
                 Toast.makeText(context, "Kid Lock imeondolewa (Screen Unlocked)", Toast.LENGTH_SHORT).show()
             }
-            isQuickControlsExpanded -> isQuickControlsExpanded = false
             showSubtitleAudioDialog -> showSubtitleAudioDialog = false
             showSpeedDialog -> showSpeedDialog = false
             showPlaylistQueue -> showPlaylistQueue = false
@@ -332,7 +329,12 @@ fun XVideoPlayerScreen(
                         player = exoPlayer
                         setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                         useController = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        resizeMode = when (aspectRatioMode) {
+                            "16:9" -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+                            "Fill" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                            "Zoom" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        }
                         layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
@@ -355,6 +357,12 @@ fun XVideoPlayerScreen(
                 update = { pv ->
                     if (pv.player != exoPlayer) {
                         pv.player = exoPlayer
+                    }
+                    pv.resizeMode = when (aspectRatioMode) {
+                        "16:9" -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+                        "Fill" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                        "Zoom" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
                     }
                     playerViewRef = pv
                 },
@@ -456,40 +464,48 @@ fun XVideoPlayerScreen(
                             )
                         }
                     }
-                    .pointerInput(isLocked) {
+                    .pointerInput(isLocked, totalWidth, totalHeight, durationMs) {
                         if (!isLocked) {
                             var dragType = 0 // 1: Brightness (left), 2: Volume (right), 3: Seek (horizontal)
                             var initialTouchX = 0f
                             var initialPosition = 0L
+                            var totalDragX = 0f
+                            var totalDragY = 0f
 
                             detectDragGestures(
                                 onDragStart = { offset ->
                                     initialTouchX = offset.x
                                     initialPosition = currentPositionMs
                                     dragType = 0
+                                    totalDragX = 0f
+                                    totalDragY = 0f
                                     notifyUserInteraction()
                                 },
                                 onDrag = { change, dragAmount ->
                                     change.consume()
                                     notifyUserInteraction()
+                                    totalDragX += dragAmount.x
+                                    totalDragY += dragAmount.y
+
                                     if (dragType == 0) {
-                                        if (Math.abs(dragAmount.x) > Math.abs(dragAmount.y) && Math.abs(dragAmount.x) > 12f) {
+                                        if (Math.abs(totalDragX) > Math.abs(totalDragY) && Math.abs(totalDragX) > 12f) {
                                             dragType = 3 // Horizontal Seek
-                                        } else if (Math.abs(dragAmount.y) > 12f) {
+                                        } else if (Math.abs(totalDragY) > 12f) {
                                             dragType = if (initialTouchX < totalWidth / 2f) 1 else 2 // 1: Brightness, 2: Volume
                                         }
                                     }
 
                                     when (dragType) {
                                         1 -> {
-                                            // Brightness on left
-                                            val delta = (-dragAmount.y / totalHeight * 100).toInt()
-                                            updateScreenBrightness(brightnessPercent + delta)
+                                            // Brightness on left (swipe up to increase, down to decrease)
+                                            val delta = (-dragAmount.y / totalHeight * 120).toInt()
+                                            brightnessPercent = (brightnessPercent + delta).coerceIn(0, 100)
+                                            updateScreenBrightness(brightnessPercent)
                                             showBrightnessOverlay = true
                                         }
                                         2 -> {
-                                            // Volume on right
-                                            val delta = (-dragAmount.y / totalHeight * 100).toInt()
+                                            // Volume on right (swipe up to increase, down to decrease)
+                                            val delta = (-dragAmount.y / totalHeight * 120).toInt()
                                             volumePercent = (volumePercent + delta).coerceIn(0, 100)
                                             val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
                                             val newVol = ((volumePercent.toFloat() / 100f) * maxVol).toInt()
@@ -497,9 +513,9 @@ fun XVideoPlayerScreen(
                                             showVolumeOverlay = true
                                         }
                                         3 -> {
-                                            // Seek horizontal
-                                            val seekSeconds = (dragAmount.x / totalWidth * 90).toInt()
-                                            val targetMs = (currentPositionMs + seekSeconds * 1000L).coerceIn(0L, durationMs)
+                                            // Seek horizontal (swipe right to forward, left to rewind)
+                                            val seekSeconds = (totalDragX / totalWidth * 90).toInt()
+                                            val targetMs = (initialPosition + seekSeconds * 1000L).coerceIn(0L, durationMs)
                                             seekToPosition(targetMs)
                                             val diff = (targetMs - initialPosition) / 1000
                                             seekDiffText = if (diff >= 0) "+${diff}s" else "${diff}s"
@@ -515,6 +531,11 @@ fun XVideoPlayerScreen(
                                         showVolumeOverlay = false
                                         showSeekOverlay = false
                                     }
+                                },
+                                onDragCancel = {
+                                    showBrightnessOverlay = false
+                                    showVolumeOverlay = false
+                                    showSeekOverlay = false
                                 }
                             )
                         }
@@ -600,16 +621,7 @@ fun XVideoPlayerScreen(
                 visible = areControlsVisible && !isLocked,
                 enter = fadeIn(),
                 exit = fadeOut(),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                awaitPointerEvent(PointerEventPass.Initial)
-                                notifyUserInteraction()
-                            }
-                        }
-                    }
+                modifier = Modifier.fillMaxSize()
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     // Top: Top Bar & Quick Controls Row
@@ -619,11 +631,6 @@ fun XVideoPlayerScreen(
                         XPlayerTopBar(
                             title = currentVideo.title,
                             decoderMode = decoderMode,
-                            isQuickControlsExpanded = isQuickControlsExpanded,
-                            onToggleQuickControls = {
-                                notifyUserInteraction()
-                                isQuickControlsExpanded = !isQuickControlsExpanded
-                            },
                             onBackClick = onBack,
                             onDecoderClick = {
                                 notifyUserInteraction()
@@ -644,136 +651,130 @@ fun XVideoPlayerScreen(
                             }
                         )
 
-                        AnimatedVisibility(
-                            visible = isQuickControlsExpanded,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
-                        ) {
-                            val abText = when {
-                                abPointA != null && abPointB != null -> "A-B"
-                                abPointA != null -> "A-"
-                                else -> ""
-                            }
-
-                            XPlayerQuickControlsRow(
-                                isOrientationLocked = isOrientationLocked,
-                                isMuted = isMuted,
-                                isBackgroundAudio = isBackgroundAudio,
-                                isNightMode = isNightMode,
-                                isMirrored = isMirrored,
-                                abRepeatStateText = abText,
-                                aspectRatioText = aspectRatioMode,
-                                speedText = if (currentSpeed == 1.0f) "1.0X" else "${currentSpeed}X",
-                                decoderMode = decoderMode,
-                                onInteraction = { notifyUserInteraction() },
-                                onOrientationToggle = {
-                                    notifyUserInteraction()
-                                    isOrientationLocked = !isOrientationLocked
-                                    onToggleOrientation()
-                                    Toast.makeText(
-                                        context,
-                                        if (isOrientationLocked) "Screen Rotation: Imefungwa" else "Screen Rotation: Mzunguko Wazi",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                },
-                                onMuteToggle = {
-                                    notifyUserInteraction()
-                                    isMuted = !isMuted
-                                    if (isMuted) {
-                                        exoPlayer.volume = 0f
-                                    } else {
-                                        exoPlayer.volume = 1f
-                                    }
-                                    Toast.makeText(context, if (isMuted) "Sauti Imesimamishwa (Muted)" else "Sauti Imerudishwa (Unmuted)", Toast.LENGTH_SHORT).show()
-                                },
-                                onBackgroundAudioToggle = {
-                                    notifyUserInteraction()
-                                    val newEnabled = videoManager.toggleBackgroundAudio()
-                                    Toast.makeText(
-                                        context,
-                                        if (newEnabled) "Background Play: Imewashwa (Inacheza simu ikifungwa au ukirudi nyuma)" else "Background Play: Imezimwa (Itasimama ukirudi nyuma)",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                },
-                                onPipClick = {
-                                    notifyUserInteraction()
-                                    onRequestPip()
-                                    Toast.makeText(context, "Inafungua Pop-up Window (PiP)...", Toast.LENGTH_SHORT).show()
-                                },
-                                onNightModeToggle = {
-                                    notifyUserInteraction()
-                                    isNightMode = !isNightMode
-                                    Toast.makeText(
-                                        context,
-                                        if (isNightMode) "Kinga ya Macho: Imewashwa (Night Mode ON)" else "Kinga ya Macho: Imezimwa (Night Mode OFF)",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                },
-                                onSpeedClick = {
-                                    notifyUserInteraction()
-                                    showSpeedDialog = true
-                                },
-                                onAspectRatioClick = {
-                                    notifyUserInteraction()
-                                    cycleAspectRatio()
-                                },
-                                onSleepTimerClick = {
-                                    notifyUserInteraction()
-                                    showSleepTimerDialog = true
-                                },
-                                onABRepeatClick = {
-                                    notifyUserInteraction()
-                                    if (abPointA == null) {
-                                        abPointA = currentPositionMs
-                                        Toast.makeText(context, "Kipande A kimewekwa: ${formatTime(currentPositionMs)}. Bonyeza tena kuweka B.", Toast.LENGTH_SHORT).show()
-                                    } else if (abPointB == null) {
-                                        if (currentPositionMs > abPointA!!) {
-                                            abPointB = currentPositionMs
-                                            Toast.makeText(context, "Kipande B kimewekwa: ${formatTime(currentPositionMs)}. Inarudia A hadi B!", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, "Point B lazima iwe mbele ya Point A", Toast.LENGTH_SHORT).show()
-                                        }
-                                    } else {
-                                        abPointA = null
-                                        abPointB = null
-                                        Toast.makeText(context, "A-B Repeat imezimwa", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                onScreenshotClick = {
-                                    notifyUserInteraction()
-                                    showFlashAnimation = true
-                                    Toast.makeText(context, "Screenshot: Picha ya video imehifadhiwa kwenye Ghala", Toast.LENGTH_SHORT).show()
-                                },
-                                onEqualizerClick = {
-                                    notifyUserInteraction()
-                                    showEqualizerDialog = true
-                                },
-                                onAudioTrackClick = {
-                                    notifyUserInteraction()
-                                    showAudioTrackDialog = true
-                                },
-                                onSubtitlesClick = {
-                                    notifyUserInteraction()
-                                    showSubtitleAudioDialog = true
-                                },
-                                onMirrorToggle = {
-                                    notifyUserInteraction()
-                                    isMirrored = !isMirrored
-                                    Toast.makeText(context, if (isMirrored) "Video imegeuzwa (Mirror Mode ON)" else "Video kawaida (Mirror Mode OFF)", Toast.LENGTH_SHORT).show()
-                                },
-                                onLockClick = {
-                                    isLocked = true
-                                    areControlsVisible = false
-                                    isQuickControlsExpanded = false
-                                    Toast.makeText(context, "Kid Lock: Skrini imefungwa kuzuia kuguswa", Toast.LENGTH_SHORT).show()
-                                },
-                                onDecoderClick = {
-                                    notifyUserInteraction()
-                                    decoderMode = if (decoderMode == "HW") "SW" else "HW"
-                                    Toast.makeText(context, "Decoder: $decoderMode (${if (decoderMode == "HW") "Hardware Acceleration" else "Software Decoder"})", Toast.LENGTH_SHORT).show()
-                                }
-                            )
+                        val abText = when {
+                            abPointA != null && abPointB != null -> "A-B"
+                            abPointA != null -> "A-"
+                            else -> ""
                         }
+
+                        // Directly visible swipeable quick controls row right under top bar as circled
+                        XPlayerQuickControlsRow(
+                            isOrientationLocked = isOrientationLocked,
+                            isMuted = isMuted,
+                            isBackgroundAudio = isBackgroundAudio,
+                            isNightMode = isNightMode,
+                            isMirrored = isMirrored,
+                            abRepeatStateText = abText,
+                            aspectRatioText = aspectRatioMode,
+                            speedText = if (currentSpeed == 1.0f) "1.0X" else "${currentSpeed}X",
+                            decoderMode = decoderMode,
+                            onInteraction = { notifyUserInteraction() },
+                            onOrientationToggle = {
+                                notifyUserInteraction()
+                                isOrientationLocked = !isOrientationLocked
+                                onToggleOrientation()
+                                Toast.makeText(
+                                    context,
+                                    if (isOrientationLocked) "Screen Rotation: Imefungwa" else "Screen Rotation: Mzunguko Wazi",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            onMuteToggle = {
+                                notifyUserInteraction()
+                                isMuted = !isMuted
+                                if (isMuted) {
+                                    exoPlayer.volume = 0f
+                                } else {
+                                    exoPlayer.volume = 1f
+                                }
+                                Toast.makeText(context, if (isMuted) "Sauti Imesimamishwa (Muted)" else "Sauti Imerudishwa (Unmuted)", Toast.LENGTH_SHORT).show()
+                            },
+                            onBackgroundAudioToggle = {
+                                notifyUserInteraction()
+                                val newEnabled = videoManager.toggleBackgroundAudio()
+                                Toast.makeText(
+                                    context,
+                                    if (newEnabled) "Background Play: Imewashwa (Inacheza simu ikifungwa au ukirudi nyuma)" else "Background Play: Imezimwa (Itasimama ukirudi nyuma)",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            onPipClick = {
+                                notifyUserInteraction()
+                                onRequestPip()
+                                Toast.makeText(context, "Inafungua Pop-up Window (PiP)...", Toast.LENGTH_SHORT).show()
+                            },
+                            onNightModeToggle = {
+                                notifyUserInteraction()
+                                isNightMode = !isNightMode
+                                Toast.makeText(
+                                    context,
+                                    if (isNightMode) "Kinga ya Macho: Imewashwa (Night Mode ON)" else "Kinga ya Macho: Imezimwa (Night Mode OFF)",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            onSpeedClick = {
+                                notifyUserInteraction()
+                                showSpeedDialog = true
+                            },
+                            onAspectRatioClick = {
+                                notifyUserInteraction()
+                                cycleAspectRatio()
+                            },
+                            onSleepTimerClick = {
+                                notifyUserInteraction()
+                                showSleepTimerDialog = true
+                            },
+                            onABRepeatClick = {
+                                notifyUserInteraction()
+                                if (abPointA == null) {
+                                    abPointA = currentPositionMs
+                                    Toast.makeText(context, "Kipande A kimewekwa: ${formatTime(currentPositionMs)}. Bonyeza tena kuweka B.", Toast.LENGTH_SHORT).show()
+                                } else if (abPointB == null) {
+                                    if (currentPositionMs > abPointA!!) {
+                                        abPointB = currentPositionMs
+                                        Toast.makeText(context, "Kipande B kimewekwa: ${formatTime(currentPositionMs)}. Inarudia A hadi B!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Point B lazima iwe mbele ya Point A", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    abPointA = null
+                                    abPointB = null
+                                    Toast.makeText(context, "A-B Repeat imezimwa", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onScreenshotClick = {
+                                notifyUserInteraction()
+                                showFlashAnimation = true
+                                Toast.makeText(context, "Screenshot: Picha ya video imehifadhiwa kwenye Ghala", Toast.LENGTH_SHORT).show()
+                            },
+                            onEqualizerClick = {
+                                notifyUserInteraction()
+                                showEqualizerDialog = true
+                            },
+                            onAudioTrackClick = {
+                                notifyUserInteraction()
+                                showAudioTrackDialog = true
+                            },
+                            onSubtitlesClick = {
+                                notifyUserInteraction()
+                                showSubtitleAudioDialog = true
+                            },
+                            onMirrorToggle = {
+                                notifyUserInteraction()
+                                isMirrored = !isMirrored
+                                Toast.makeText(context, if (isMirrored) "Video imegeuzwa (Mirror Mode ON)" else "Video kawaida (Mirror Mode OFF)", Toast.LENGTH_SHORT).show()
+                            },
+                            onLockClick = {
+                                isLocked = true
+                                areControlsVisible = false
+                                Toast.makeText(context, "Kid Lock: Skrini imefungwa kuzuia kuguswa", Toast.LENGTH_SHORT).show()
+                            },
+                            onDecoderClick = {
+                                notifyUserInteraction()
+                                decoderMode = if (decoderMode == "HW") "SW" else "HW"
+                                Toast.makeText(context, "Decoder: $decoderMode (${if (decoderMode == "HW") "Hardware Acceleration" else "Software Decoder"})", Toast.LENGTH_SHORT).show()
+                            }
+                        )
                     }
 
                     // Bottom: Bottom Bar (Time, Slider, Controls)
@@ -791,7 +792,6 @@ fun XVideoPlayerScreen(
                         onLockToggle = {
                             isLocked = true
                             areControlsVisible = false
-                            isQuickControlsExpanded = false
                             Toast.makeText(context, "Kid Lock: Skrini imefungwa kuzuia kuguswa", Toast.LENGTH_SHORT).show()
                         },
                         onPrevious = {

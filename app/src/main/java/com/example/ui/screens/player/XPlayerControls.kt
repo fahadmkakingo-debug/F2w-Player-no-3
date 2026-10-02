@@ -110,8 +110,6 @@ import com.example.ui.theme.F2WVioletAccent
 fun XPlayerTopBar(
     title: String,
     decoderMode: String,
-    isQuickControlsExpanded: Boolean = false,
-    onToggleQuickControls: () -> Unit = {},
     onBackClick: () -> Unit,
     onDecoderClick: () -> Unit,
     onSubtitlesClick: () -> Unit,
@@ -220,26 +218,7 @@ fun XPlayerTopBar(
                 )
             }
 
-            // 4. Quick Tools / See More Buttons Toggle
-            IconButton(
-                onClick = onToggleQuickControls,
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isQuickControlsExpanded) F2WCyanPrimary.copy(alpha = 0.28f)
-                        else Color.Transparent
-                    )
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Tune,
-                    contentDescription = "Vifaa na Chaguo Zaidi (Quick Tools)",
-                    tint = if (isQuickControlsExpanded) F2WCyanPrimary else Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            // 5. More Options Sheet
+            // 4. More Options Sheet
             IconButton(
                 onClick = onMoreClick,
                 modifier = Modifier.size(38.dp)
