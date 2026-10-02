@@ -4,6 +4,16 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,12 +62,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.PI
+import kotlin.math.sin
 import com.example.data.media.LocalVideoScanner
 import com.example.data.media.RecentlyPlayedManager
 import com.example.data.security.PrivacyVaultManager
@@ -597,40 +615,255 @@ private fun FilterPillButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val primaryColor = F2WCyanPrimary
-    val surfaceElevated = F2WSurfaceElevated
-    val cardBorder = F2WCardBorder
-    val textSecondary = F2WTextSecondary
+    // Independent Wet Glass & Dew Droplets Glistening Animation
+    val dropletTransition = rememberInfiniteTransition(label = "wet_droplets_${mode.name}")
+    
+    // Glistening sparkle pulse on water droplets
+    val gleamPulse by dropletTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1600 + (mode.ordinal * 280), easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "gleam_pulse_${mode.name}"
+    )
 
-    val backgroundColor = if (isSelected) primaryColor else surfaceElevated
-    val contentColor = if (isSelected) Color.White else textSecondary
-    val borderColor = if (isSelected) primaryColor else cardBorder
+    // Gentle light sheen passing over the wet glass
+    val wetSheenOffset by dropletTransition.animateFloat(
+        initialValue = -0.6f,
+        targetValue = 1.6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3800 + (mode.ordinal * 420), easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wet_sheen_${mode.name}"
+    )
+
+    // Secondary micro-condensation sparkle
+    val microDewShimmer by dropletTransition.animateFloat(
+        initialValue = 0.2f,
+        targetValue = 0.85f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2200 + (mode.ordinal * 310), easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "micro_dew_${mode.name}"
+    )
+
+    // 3D Depth & Elevation
+    val shadowElevation by animateDpAsState(
+        targetValue = if (isSelected) 5.dp else 2.5.dp,
+        label = "pill_elevation_${mode.name}"
+    )
+
+    val contentColor = if (isSelected) Color.White else Color(0xFFE2F4FA)
+    val pillShape = RoundedCornerShape(percent = 50)
+
+    // 3D Bevel Border (Light reflection top-left, darker glass rim bottom-right)
+    val bevelBorderBrush = if (isSelected) {
+        Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.90f),
+                Color(0xFF00E5FF),
+                Color(0xFF0077B6).copy(alpha = 0.60f),
+                Color(0xFF03045E).copy(alpha = 0.90f)
+            ),
+            start = Offset(0f, 0f),
+            end = Offset(200f, 80f)
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.45f),
+                Color(0x6600E5FF),
+                Color(0x22132D42),
+                Color.Black.copy(alpha = 0.75f)
+            ),
+            start = Offset(0f, 0f),
+            end = Offset(200f, 80f)
+        )
+    }
+
+    // 3D Wet Glass Base Surface Fill
+    val baseBackgroundBrush = if (isSelected) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF00B4D8), // bright wet cyan top
+                Color(0xFF0077B6), // mid ocean cyan
+                Color(0xFF023E8A)  // dark 3D base depth
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xF0183852), // glossy translucent upper wet glass
+                Color(0xF50F2538), // mid wet body
+                Color(0xFA071522)  // bottom 3D shadow rim
+            )
+        )
+    }
 
     Box(
         modifier = modifier
-            .height(26.dp)
-            .clip(RoundedCornerShape(13.dp))
-            .background(backgroundColor)
-            .border(1.dp, borderColor, RoundedCornerShape(13.dp))
+            .height(27.dp)
+            .shadow(
+                elevation = shadowElevation,
+                shape = pillShape,
+                spotColor = if (isSelected) Color(0x9900E5FF) else Color(0x66000000),
+                ambientColor = if (isSelected) Color(0x4400E5FF) else Color(0x33000000)
+            )
+            .clip(pillShape)
+            .background(baseBackgroundBrush)
+            .border(width = 1.1.dp, brush = bevelBorderBrush, shape = pillShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(color = Color.White),
                 onClick = onClick
             )
-            .testTag(mode.testTag)
-            .padding(horizontal = 7.dp),
+            .testTag(mode.testTag),
         contentAlignment = Alignment.Center
     ) {
+        // 💧 Wet Glass Surface with Glistening Water Droplets Layer
+        Canvas(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(pillShape)
+        ) {
+            val width = size.width
+            val height = size.height
+
+            if (width <= 0 || height <= 0) return@Canvas
+
+            // 1. Wet glass condensation mist / subtle moisture gradient
+            val wetMistBrush = Brush.radialGradient(
+                colors = listOf(
+                    (if (isSelected) Color(0x30FFFFFF) else Color(0x2000E5FF)),
+                    Color.Transparent
+                ),
+                center = Offset(width * 0.35f, height * 0.3f),
+                radius = width * 0.6f
+            )
+            drawRect(brush = wetMistBrush)
+
+            // 2. Deterministic Water Droplets (Dew Drops on glass) seeded by mode.ordinal
+            val dropletPositions = listOf(
+                // xFraction, yFraction, radius, gleamFactor
+                listOf(0.12f, 0.32f, 2.6f, 0.9f),
+                listOf(0.22f, 0.72f, 1.8f, 0.7f),
+                listOf(0.38f, 0.28f, 2.2f, 0.85f),
+                listOf(0.52f, 0.68f, 3.2f, 1.0f),
+                listOf(0.68f, 0.30f, 2.0f, 0.75f),
+                listOf(0.82f, 0.62f, 2.8f, 0.95f),
+                listOf(0.92f, 0.38f, 1.6f, 0.65f),
+                listOf(0.30f, 0.50f, 1.4f, 0.6f),
+                listOf(0.60f, 0.42f, 1.5f, 0.6f),
+                listOf(0.76f, 0.76f, 2.4f, 0.8f)
+            )
+
+            dropletPositions.forEachIndexed { index, drop ->
+                // Stagger slightly per mode
+                val xFrac = (drop[0] + (mode.ordinal * 0.07f)) % 0.94f + 0.03f
+                val yFrac = (drop[1] + (mode.ordinal * 0.05f)) % 0.80f + 0.10f
+                val baseRadius = drop[2]
+                val individualGleam = drop[3]
+
+                val cx = width * xFrac
+                val cy = height * yFrac
+
+                // Droplet dark shadow underneath on glass
+                drawCircle(
+                    color = Color.Black.copy(alpha = 0.35f),
+                    radius = baseRadius + 0.4f,
+                    center = Offset(cx + 0.6f, cy + 0.8f)
+                )
+
+                // Translucent liquid droplet body
+                val dropBodyColor = if (isSelected) {
+                    Color(0x6000F5FF)
+                } else {
+                    Color(0x4500D4FF)
+                }
+                drawCircle(
+                    color = dropBodyColor,
+                    radius = baseRadius,
+                    center = Offset(cx, cy)
+                )
+
+                // Internal light refraction bottom crescent
+                val bottomRefractionColor = if (isSelected) {
+                    Color.White.copy(alpha = 0.45f * gleamPulse)
+                } else {
+                    Color(0x8000E5FF).copy(alpha = 0.40f * gleamPulse)
+                }
+                drawCircle(
+                    color = bottomRefractionColor,
+                    radius = baseRadius * 0.55f,
+                    center = Offset(cx + 0.3f, cy + (baseRadius * 0.35f))
+                )
+
+                // Glistening specular highlight pin-point on top-left of droplet
+                val highlightAlpha = (0.75f + (0.25f * sin(gleamPulse * PI.toFloat() * individualGleam))).coerceIn(0f, 1f)
+                drawCircle(
+                    color = Color.White.copy(alpha = highlightAlpha),
+                    radius = (baseRadius * 0.38f).coerceAtLeast(0.8f),
+                    center = Offset(cx - (baseRadius * 0.35f), cy - (baseRadius * 0.35f))
+                )
+            }
+
+            // 3. Passing Wet Glass Light Sheen Sweep
+            val sheenX = wetSheenOffset * (width + height)
+            val sheenStart = Offset(sheenX - 25f, 0f)
+            val sheenEnd = Offset(sheenX + 25f, height)
+            val sheenBrush = Brush.linearGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    (if (isSelected) Color.White.copy(alpha = 0.26f) else Color(0x3500E5FF)),
+                    Color.Transparent
+                ),
+                start = sheenStart,
+                end = sheenEnd
+            )
+            drawRect(brush = sheenBrush)
+        }
+
+        // Top 3D Specular Glass Glare Overlay
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(pillShape)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = if (isSelected) 0.34f else 0.18f),
+                            Color.Transparent
+                        ),
+                        startY = 0f,
+                        endY = 32f
+                    )
+                )
+        )
+
+        // Content Row: Icon / NEW Badge & Label
         Row(
+            modifier = Modifier.padding(horizontal = 7.5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             if (mode == VideoFilterMode.RECENTLY_ADDED) {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(if (isSelected) Color.White.copy(alpha = 0.28f) else Color(0xFF133B47))
-                        .padding(horizontal = 2.5.dp, vertical = 0.5.dp),
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(
+                            if (isSelected) Color.White.copy(alpha = 0.28f)
+                            else Color(0xFF00E5FF).copy(alpha = 0.25f)
+                        )
+                        .border(
+                            width = 0.6.dp,
+                            color = if (isSelected) Color.White.copy(alpha = 0.5f) else Color(0x6600E5FF),
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .padding(horizontal = 3.dp, vertical = 0.8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -638,7 +871,7 @@ private fun FilterPillButton(
                         color = contentColor,
                         fontSize = 7.5.sp,
                         fontWeight = FontWeight.Black,
-                        letterSpacing = 0.2.sp
+                        letterSpacing = 0.3.sp
                     )
                 }
             } else {
@@ -646,17 +879,17 @@ private fun FilterPillButton(
                     imageVector = mode.icon,
                     contentDescription = mode.label,
                     tint = contentColor,
-                    modifier = Modifier.size(12.dp)
+                    modifier = Modifier.size(13.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(4.5.dp))
 
             Text(
                 text = mode.label,
                 color = contentColor,
                 fontSize = 10.5.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                 maxLines = 1
             )
         }
