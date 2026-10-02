@@ -91,6 +91,23 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
         val prefs = VideoSettingsPreferences(appContext)
         if (prefs.rememberBackgroundPlay) {
             _isBackgroundAudioEnabled.value = prefs.isBackgroundPlayEnabled
+        } else {
+            _isBackgroundAudioEnabled.value = false
+        }
+    }
+
+    fun releasePlayer() {
+        val player = exoPlayer
+        if (player != null) {
+            try {
+                player.clearVideoSurface()
+                player.stop()
+                player.clearMediaItems()
+                player.release()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            exoPlayer = null
         }
     }
 
@@ -122,9 +139,6 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
                     AudioPlaybackManager.getInstance(appContext).pause()
                 } else {
                     stopProgressTracking()
-                }
-                if (_isBackgroundAudioEnabled.value && _currentVideo.value != null) {
-                    VideoPlaybackService.update(appContext)
                 }
             }
 
@@ -208,14 +222,16 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
         newPlaylist: List<VideoItem> = listOf(video),
         startPositionMs: Long? = null
     ) {
-        val player = getOrCreatePlayer()
-
         // Pause audio playback if currently active
         AudioPlaybackManager.getInstance(appContext).pause()
 
         _currentVideo.value = video
         _playlist.value = if (newPlaylist.isNotEmpty()) newPlaylist else listOf(video)
         _currentIndex.value = _playlist.value.indexOfFirst { it.id == video.id }.coerceAtLeast(0)
+
+        // Release any existing player to ensure a pristine player instance and clean surface attachment
+        releasePlayer()
+        val player = getOrCreatePlayer()
 
         val playableUri = if (video.uriString.startsWith("content://") ||
             video.uriString.startsWith("file://") ||
@@ -242,8 +258,6 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
             _currentSubtitleName.value = "None"
         }
 
-        player.stop()
-        player.clearMediaItems()
         player.setMediaItem(mediaItemBuilder.build())
         player.prepare()
 
@@ -266,10 +280,6 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
         _isMiniPlayerVisible.value = false
 
         loadThumbnailBitmap(video)
-
-        if (_isBackgroundAudioEnabled.value) {
-            VideoPlaybackService.update(appContext)
-        }
     }
 
     private fun loadThumbnailBitmap(video: VideoItem) {
@@ -357,16 +367,6 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
         if (prefs.rememberBackgroundPlay) {
             prefs.isBackgroundPlayEnabled = enabled
         }
-        if (enabled) {
-            if (_isPlaying.value && !_isFullScreenOpen.value) {
-                VideoPlaybackService.start(appContext)
-            }
-        } else {
-            // Background play disabled: if currently running in background outside full screen, stop
-            if (!_isFullScreenOpen.value) {
-                stopPlayback()
-            }
-        }
     }
 
     fun openFullScreen() {
@@ -391,9 +391,8 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
             if (video != null && pos > 0L) {
                 RecentlyPlayedManager.getInstance(appContext).savePlaybackPosition(video.id, pos)
             }
-            player.stop()
-            player.clearMediaItems()
         }
+        releasePlayer()
         _currentVideo.value = null
         _isPlaying.value = false
         _isFullScreenOpen.value = false
@@ -409,12 +408,12 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
     fun onAppBackgrounded() {
         if (_currentVideo.value != null && _isPlaying.value) {
             if (_isBackgroundAudioEnabled.value) {
-                // Background play is ENABLED:
+                // Background play is ENABLED by user in settings:
                 // Keep playing video audio and start foreground service with media notification!
                 VideoPlaybackService.start(appContext)
             } else {
-                // Background play is DISABLED:
-                // PAUSE IMMEDIATELY to prevent phantom audio leaks!
+                // Background play is NOT enabled:
+                // PAUSE IMMEDIATELY
                 pause()
                 VideoPlaybackService.stop(appContext)
             }
@@ -425,8 +424,9 @@ class VideoPlaybackManager private constructor(private val appContext: Context) 
      * Called when the app returns to foreground.
      */
     fun onAppForegrounded() {
-        if (_currentVideo.value != null && _isBackgroundAudioEnabled.value) {
-            VideoPlaybackService.update(appContext)
+        if (_isFullScreenOpen.value) {
+            // Dismiss notification when watching inside the app
+            VideoPlaybackService.stop(appContext)
         }
     }
 

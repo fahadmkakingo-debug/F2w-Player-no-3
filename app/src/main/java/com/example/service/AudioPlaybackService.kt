@@ -196,11 +196,15 @@ class AudioPlaybackService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setShowWhen(false)
-            // Explicit user actions
-            .addAction(android.R.drawable.ic_media_previous, "Previous", pPrev)
-            .addAction(playPauseIcon, playPauseText, pToggle)
-            .addAction(android.R.drawable.ic_media_next, "Next", pNext)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", pStop)
+            // Explicit user actions (icons only without text clutter)
+            .addAction(android.R.drawable.ic_media_previous, "Previous", pPrev) // Index 0
+            .addAction(playPauseIcon, playPauseText, pToggle) // Index 1
+            .addAction(android.R.drawable.ic_media_next, "Next", pNext) // Index 2
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", pStop) // Index 3
+            .setStyle(
+                androidx.media.app.NotificationCompat.MediaStyle()
+                    .setShowActionsInCompactView(0, 1, 2)
+            )
 
         if (coverBitmap != null) {
             builder.setLargeIcon(coverBitmap)

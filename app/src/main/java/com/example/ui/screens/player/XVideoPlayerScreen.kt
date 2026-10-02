@@ -233,6 +233,8 @@ fun XVideoPlayerScreen(
             if (currentPositionMs > 0L) {
                 recentlyPlayedManager.savePlaybackPosition(currentVideo.id, currentPositionMs)
             }
+            playerViewRef?.player = null
+            playerViewRef = null
             insetsController?.show(WindowInsetsCompat.Type.systemBars())
             // Reset screen brightness
             activity?.window?.let { win ->
