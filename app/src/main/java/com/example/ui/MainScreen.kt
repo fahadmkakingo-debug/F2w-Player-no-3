@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.data.media.LocalVideoScanner
@@ -48,6 +49,8 @@ import com.example.ui.screens.video.VideoScreen
 import com.example.ui.screens.video.VideoSearchOverlayScreen
 import com.example.ui.screens.welcome.WelcomeScreen
 import com.example.ui.theme.F2WBackground
+import com.example.ui.theme.LiveThemeBackground
+import com.example.ui.theme.ThemeManager
 import com.example.util.permission.MediaPermissionManager
 import com.example.util.permission.MediaPermissionType
 import kotlinx.coroutines.launch
@@ -61,6 +64,7 @@ fun MainScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val currentTheme by ThemeManager.getInstance(context).currentTheme.collectAsState()
 
     val coroutineScope = rememberCoroutineScope()
     val scanner = remember { LocalVideoScanner.getInstance(context) }
@@ -74,7 +78,9 @@ fun MainScreen(
         scanner.startScan(forceFullRescan = false)
     }
 
-    var showWelcomeScreen by rememberSaveable { mutableStateOf(true) }
+    val prefs = remember { context.getSharedPreferences("f2w_app_prefs", Context.MODE_PRIVATE) }
+    val hasSeenWelcome = remember { prefs.getBoolean("has_seen_welcome_screen", false) }
+    var showWelcomeScreen by rememberSaveable { mutableStateOf(!hasSeenWelcome) }
 
     // Start background sync immediately if permission already granted
     LaunchedEffect(Unit) {
@@ -86,7 +92,7 @@ fun MainScreen(
     // When welcome screen finishes, prompt for permission if it's the very first launch
     LaunchedEffect(showWelcomeScreen) {
         if (!showWelcomeScreen) {
-            val prefs = context.getSharedPreferences("f2w_app_prefs", Context.MODE_PRIVATE)
+            prefs.edit().putBoolean("has_seen_welcome_screen", true).apply()
             val hasRequestedBefore = prefs.getBoolean("has_prompted_media_permissions", false)
             val hasAccess = MediaPermissionManager.hasMediaAccess(context, MediaPermissionType.ALL_MEDIA)
             if (!hasAccess && !hasRequestedBefore) {
@@ -102,7 +108,10 @@ fun MainScreen(
     // Welcome Screen with Dramatic Overhead Spotlight Beam
     if (showWelcomeScreen) {
         WelcomeScreen(
-            onContinue = { showWelcomeScreen = false }
+            onContinue = {
+                prefs.edit().putBoolean("has_seen_welcome_screen", true).apply()
+                showWelcomeScreen = false
+            }
         )
         return
     }
@@ -167,9 +176,17 @@ fun MainScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
+        // Dynamic Live Theme Animated Canvas Layer
+        if (currentTheme.isLiveAnimated) {
+            LiveThemeBackground(
+                theme = currentTheme,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            containerColor = F2WBackground,
+            containerColor = if (currentTheme.isLiveAnimated) Color.Transparent else F2WBackground,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 if (selectedTab != NavTab.AUDIO) {

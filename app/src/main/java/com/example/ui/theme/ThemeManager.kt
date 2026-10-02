@@ -13,10 +13,18 @@ import kotlinx.coroutines.flow.asStateFlow
 enum class AppTheme(
     val id: String,
     val title: String,
-    val isAuto: Boolean = false
+    val isAuto: Boolean = false,
+    val isLiveAnimated: Boolean = false
 ) {
     SYSTEM_DEFAULT("system_default", "System Default", isAuto = true),
     F2W_CYAN("f2w_cyan", "Cyan Night"),
+    LIVE_GLASS_RAIN("live_glass_rain", "White Glass Rain", isLiveAnimated = true),
+    LIVE_ADVENTURE("live_adventure", "Lush Adventure Forest", isLiveAnimated = true),
+    LIVE_METROPOLIS("live_metropolis", "City Skyline", isLiveAnimated = true),
+    LIVE_HIGHWAY_DRIVE("live_highway_drive", "Sunset Highway Drive", isLiveAnimated = true),
+    LIVE_GOLDEN_FIELDS("live_golden_fields", "Golden Meadow Fields", isLiveAnimated = true),
+    LIVE_WILDLIFE_SAFARI("live_wildlife_safari", "Wildlife Safari", isLiveAnimated = true),
+    LIVE_AURORA_WAVE("live_aurora_wave", "Neon Aurora Live", isLiveAnimated = true),
     MIDNIGHT_GALAXY("midnight_galaxy", "Midnight Galaxy"),
     OCEAN_GLASS("ocean_glass", "Ocean Glass"),
     NATURE_GREEN("nature_green", "Nature Green"),
@@ -404,10 +412,143 @@ object ThemePaletteFactory {
         swatchGradient = Brush.verticalGradient(listOf(Color(0xFF475569), Color(0xFF0B1B24)))
     )
 
+    // 21. Live Glass Rain (White Frosted Crystal Glass with Droplets)
+    val LiveGlassRain = F2WThemeColors(
+        background = Color(0xFFF1F5F9),
+        surface = Color(0xEEFFFFFF),
+        surfaceElevated = Color(0xF2FFFFFF),
+        surfaceHighlight = Color(0xFFE2E8F0),
+        cardBorder = Color(0xFF0284C7),
+        primary = Color(0xFF0284C7),
+        primaryDark = Color(0xFF0369A1),
+        textPrimary = Color(0xFF0F172A),
+        textSecondary = Color(0xFF334155),
+        textTertiary = Color(0xFF64748B),
+        navBackground = Color(0xF2F8FAFC),
+        navPillActive = Color(0xFFE2E8F0),
+        navPillBorder = Color(0xFF0284C7),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFE0F2FE), Color(0xFF0284C7)))
+    )
+
+    // 22. Live Adventure Quest (Lush Nature Forest, Trees, Flowers, Leaves)
+    val LiveAdventure = F2WThemeColors(
+        background = Color(0xFF041A11),
+        surface = Color(0xDD08291B),
+        surfaceElevated = Color(0xDD0D3825),
+        surfaceHighlight = Color(0xDD144A32),
+        cardBorder = Color(0xFF10B981),
+        primary = Color(0xFFFFB703),
+        primaryDark = Color(0xFF10B981),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xF0041A11),
+        navPillActive = Color(0xFF144A32),
+        navPillBorder = Color(0xFFFFB703),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFFB703), Color(0xFF10B981), Color(0xFF041A11)))
+    )
+
+    // 23. Live Metropolis (Illuminated City Skyline with Changing Building Lights)
+    val LiveMetropolis = F2WThemeColors(
+        background = Color(0xFF0A0F1D),
+        surface = Color(0xDD111827),
+        surfaceElevated = Color(0xDD1F2937),
+        surfaceHighlight = Color(0xDD374151),
+        cardBorder = Color(0xFFFFC107),
+        primary = Color(0xFFFFC107),
+        primaryDark = Color(0xFF00E5FF),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xF00A0F1D),
+        navPillActive = Color(0xFF374151),
+        navPillBorder = Color(0xFFFFC107),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFFC107), Color(0xFF00E5FF), Color(0xFF0A0F1D)))
+    )
+
+    // 24. Live Highway Drive (Cruising Car on Scenic Sunset Highway)
+    val LiveHighwayDrive = F2WThemeColors(
+        background = Color(0xFF1A0A24),
+        surface = Color(0xDD270E36),
+        surfaceElevated = Color(0xDD3B1452),
+        surfaceHighlight = Color(0xDD521C72),
+        cardBorder = Color(0xFFFF5E00),
+        primary = Color(0xFFFF5E00),
+        primaryDark = Color(0xFFFF007A),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xF01A0A24),
+        navPillActive = Color(0xFF521C72),
+        navPillBorder = Color(0xFFFF5E00),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFFF5E00), Color(0xFFFF007A), Color(0xFF7B2CBF)))
+    )
+
+    // 25. Live Golden Fields (Rolling Meadow Hills, Waving Crops & Sunbeams)
+    val LiveGoldenFields = F2WThemeColors(
+        background = Color(0xFF101A0B),
+        surface = Color(0xDD192911),
+        surfaceElevated = Color(0xDD263D1A),
+        surfaceHighlight = Color(0xDD365525),
+        cardBorder = Color(0xFFE9C46A),
+        primary = Color(0xFFE9C46A),
+        primaryDark = Color(0xFF52B788),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xF0101A0B),
+        navPillActive = Color(0xFF365525),
+        navPillBorder = Color(0xFFE9C46A),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFE9C46A), Color(0xFF52B788), Color(0xFF101A0B)))
+    )
+
+    // 26. Live Wildlife Safari (Walking Deer, Birds in Flight, Savanna Twilight)
+    val LiveWildlifeSafari = F2WThemeColors(
+        background = Color(0xFF1C0D05),
+        surface = Color(0xDD2B1408),
+        surfaceElevated = Color(0xDD3D1D0C),
+        surfaceHighlight = Color(0xDD572A12),
+        cardBorder = Color(0xFFF4A261),
+        primary = Color(0xFFF4A261),
+        primaryDark = Color(0xFFE76F51),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xF01C0D05),
+        navPillActive = Color(0xFF572A12),
+        navPillBorder = Color(0xFFF4A261),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFFF4A261), Color(0xFFE76F51), Color(0xFF1C0D05)))
+    )
+
+    // 27. Live Neon Aurora (Dynamic undulating Northern Lights & cosmic dust)
+    val LiveAuroraWave = F2WThemeColors(
+        background = Color(0xFF020912),
+        surface = Color(0xDD041824),
+        surfaceElevated = Color(0xDD08273A),
+        surfaceHighlight = Color(0xDD0E3C56),
+        cardBorder = Color(0xFF00F5D4),
+        primary = Color(0xFF00F5D4),
+        primaryDark = Color(0xFF7B2CBF),
+        textPrimary = Color.White,
+        textSecondary = Color(0xFFE2E8F0),
+        textTertiary = Color(0xFFA0AEC0),
+        navBackground = Color(0xF0020912),
+        navPillActive = Color(0xFF0E3C56),
+        navPillBorder = Color(0xFF00F5D4),
+        swatchGradient = Brush.verticalGradient(listOf(Color(0xFF00F5D4), Color(0xFF39FF14), Color(0xFF7B2CBF), Color(0xFF020912)))
+    )
+
     fun getColors(theme: AppTheme): F2WThemeColors {
         return when (theme) {
             AppTheme.SYSTEM_DEFAULT -> SystemDefault
             AppTheme.F2W_CYAN -> CyanNight
+            AppTheme.LIVE_GLASS_RAIN -> LiveGlassRain
+            AppTheme.LIVE_ADVENTURE -> LiveAdventure
+            AppTheme.LIVE_METROPOLIS -> LiveMetropolis
+            AppTheme.LIVE_HIGHWAY_DRIVE -> LiveHighwayDrive
+            AppTheme.LIVE_GOLDEN_FIELDS -> LiveGoldenFields
+            AppTheme.LIVE_WILDLIFE_SAFARI -> LiveWildlifeSafari
+            AppTheme.LIVE_AURORA_WAVE -> LiveAuroraWave
             AppTheme.MIDNIGHT_GALAXY -> MidnightGalaxy
             AppTheme.OCEAN_GLASS -> OceanGlass
             AppTheme.NATURE_GREEN -> NatureGreen

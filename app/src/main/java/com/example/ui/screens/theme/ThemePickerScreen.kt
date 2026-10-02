@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AppTheme
 import com.example.ui.theme.F2WThemeColors
+import com.example.ui.theme.LiveThemeBackground
 import com.example.ui.theme.ThemeManager
 import com.example.ui.theme.ThemePaletteFactory
 
@@ -93,33 +94,50 @@ fun ThemePickerScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Top Navigation Bar
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // Back Button
-                Box(
+                Row(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0x33FFFFFF))
                         .clickable(onClick = onBack)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
                         .testTag("theme_picker_back_button"),
-                    contentAlignment = Alignment.Center
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Back",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
 
                 // Centered Title: Name of currently inspected theme with emoji
                 val themeHeaderIcon = when (inspectedTheme) {
-                    AppTheme.MIDNIGHT_GALAXY -> "🌌 "
+                    AppTheme.LIVE_GLASS_RAIN -> "💧 "
+                    AppTheme.LIVE_ADVENTURE -> "🌿 "
+                    AppTheme.LIVE_METROPOLIS -> "🏙️ "
+                    AppTheme.LIVE_HIGHWAY_DRIVE -> "🚗 "
+                    AppTheme.LIVE_GOLDEN_FIELDS -> "🌾 "
+                    AppTheme.LIVE_WILDLIFE_SAFARI -> "🦌 "
+                    AppTheme.LIVE_AURORA_WAVE -> "🌌 "
+                    AppTheme.MIDNIGHT_GALAXY -> "🪐 "
                     AppTheme.OCEAN_GLASS -> "🌊 "
-                    AppTheme.NATURE_GREEN -> "🌿 "
+                    AppTheme.NATURE_GREEN -> "🍃 "
                     AppTheme.SUNSET_GLOW -> "🌅 "
                     AppTheme.BLACK_CARBON -> "🖤 "
                     AppTheme.NEON_PURPLE -> "💜 "
@@ -132,20 +150,44 @@ fun ThemePickerScreen(
                 Text(
                     text = "$themeHeaderIcon${inspectedTheme.title}",
                     color = Color.White,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.Center)
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold
                 )
+
+                // Quick Apply / Close Button
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF10B981))
+                        .clickable {
+                            themeManager.setTheme(inspectedTheme)
+                            onBack()
+                        }
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                        .testTag("theme_picker_done_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Done",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Center: Interactive Theme Mockup Preview Card
+            // Center: Interactive Theme Mockup Preview Card (Tap to apply & return)
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 32.dp, vertical = 8.dp),
+                    .padding(horizontal = 24.dp, vertical = 6.dp)
+                    .clickable {
+                        themeManager.setTheme(inspectedTheme)
+                        onBack()
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 AnimatedContent(
@@ -161,14 +203,14 @@ fun ThemePickerScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // Bottom Section: Swatch Carousel + Use / In Use Button
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFF22262B)) // Bottom container matching screenshot
-                    .padding(top = 18.dp, bottom = 26.dp),
+                    .padding(top = 14.dp, bottom = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Horizontally Scrollable Theme Swatches (The Red Circled Row)
@@ -176,8 +218,8 @@ fun ThemePickerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("theme_swatches_row"),
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     items(AppTheme.entries.toTypedArray()) { themeItem ->
@@ -195,44 +237,47 @@ fun ThemePickerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Bottom Action Button ("Use" / "In use")
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 28.dp)
+                        .padding(horizontal = 24.dp)
                 ) {
                     if (isInspectedActive) {
-                        // "In use" Button (Disabled Dark Slate)
-                        Box(
+                        // "In use" Button - Clickable to return to app
+                        Button(
+                            onClick = onBack,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(50.dp)
-                                .clip(RoundedCornerShape(25.dp))
-                                .background(Color(0xFF4B5563))
+                                .height(48.dp)
                                 .testTag("button_theme_in_use"),
-                            contentAlignment = Alignment.Center
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF374151)
+                            ),
+                            shape = RoundedCornerShape(24.dp)
                         ) {
                             Text(
-                                text = "In use",
-                                color = Color(0xFFD1D5DB),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
+                                text = "Active Theme • Tap to return to Player",
+                                color = Color(0xFFE5E7EB),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     } else {
-                        // "Use" Button (Vibrant Orange-Pink Gradient matching Screenshot 2)
+                        // "Use" Button (Vibrant Orange-Pink Gradient) - Applies & returns to app
                         Button(
                             onClick = {
                                 themeManager.setTheme(inspectedTheme)
+                                onBack()
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(50.dp)
+                                .height(48.dp)
                                 .shadow(
                                     elevation = 10.dp,
-                                    shape = RoundedCornerShape(25.dp),
+                                    shape = RoundedCornerShape(24.dp),
                                     spotColor = Color(0xFFFF5E00)
                                 )
                                 .testTag("button_theme_use"),
@@ -240,7 +285,7 @@ fun ThemePickerScreen(
                                 containerColor = Color.Transparent
                             ),
                             contentPadding = PaddingValues(),
-                            shape = RoundedCornerShape(25.dp)
+                            shape = RoundedCornerShape(24.dp)
                         ) {
                             Box(
                                 modifier = Modifier
@@ -257,9 +302,9 @@ fun ThemePickerScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "Use",
+                                    text = "Apply & Use Theme",
                                     color = Color.White,
-                                    fontSize = 17.sp,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.5.sp
                                 )
@@ -300,9 +345,16 @@ private fun ThemeSwatchItem(
             contentAlignment = Alignment.Center
         ) {
             val swatchEmoji = when (theme) {
-                AppTheme.MIDNIGHT_GALAXY -> "🌌"
+                AppTheme.LIVE_GLASS_RAIN -> "💧"
+                AppTheme.LIVE_ADVENTURE -> "🌿"
+                AppTheme.LIVE_METROPOLIS -> "🏙️"
+                AppTheme.LIVE_HIGHWAY_DRIVE -> "🚗"
+                AppTheme.LIVE_GOLDEN_FIELDS -> "🌾"
+                AppTheme.LIVE_WILDLIFE_SAFARI -> "🦌"
+                AppTheme.LIVE_AURORA_WAVE -> "🌌"
+                AppTheme.MIDNIGHT_GALAXY -> "🪐"
                 AppTheme.OCEAN_GLASS -> "🌊"
-                AppTheme.NATURE_GREEN -> "🌿"
+                AppTheme.NATURE_GREEN -> "🍃"
                 AppTheme.SUNSET_GLOW -> "🌅"
                 AppTheme.BLACK_CARBON -> "🖤"
                 AppTheme.NEON_PURPLE -> "💜"
@@ -344,6 +396,25 @@ private fun ThemeSwatchItem(
             }
         }
 
+        // Live badge for live animated themes
+        if (theme.isLiveAnimated) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(2.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xE600E5FF))
+                    .padding(horizontal = 3.dp, vertical = 0.5.dp)
+            ) {
+                Text(
+                    text = "LIVE",
+                    color = Color(0xFF021018),
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+        }
+
         // Green Checkmark Badge for currently active theme in use
         if (isActive) {
             Box(
@@ -380,6 +451,14 @@ private fun ThemePreviewCard(
             .background(colors.background)
             .border(1.dp, colors.cardBorder, RoundedCornerShape(22.dp))
     ) {
+        // Live Animated Background for animated themes
+        if (theme.isLiveAnimated) {
+            LiveThemeBackground(
+                theme = theme,
+                modifier = Modifier.matchParentSize()
+            )
+        }
+
         if (theme == AppTheme.SYSTEM_DEFAULT) {
             // Auto Mode Card (Matching Screenshot 1)
             Column(
