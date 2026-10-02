@@ -1,9 +1,16 @@
 package com.example.ui.navigation
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,16 +40,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.sin
 
 /**
- * Modern floating pill navigation bar with frosted glassmorphism styling
- * and an elevated circular active indicator matching the reference design.
+ * Modern floating pill navigation bar with transparent glassmorphism styling
+ * and an animated liquid water wave shimmer effect inside the curved capsule.
  */
 @Composable
 fun FloatingNavBar(
@@ -58,43 +69,71 @@ fun FloatingNavBar(
             .testTag("floating_bottom_navigation_bar"),
         contentAlignment = Alignment.Center
     ) {
-        // Frosted Glass Capsule / Pill Container
+        // Transparent Frosted Glass Capsule Container with Curved Edges
         Box(
             modifier = Modifier
                 .widthIn(max = 460.dp)
                 .fillMaxWidth()
                 .height(68.dp)
                 .shadow(
-                    elevation = 18.dp,
+                    elevation = 20.dp,
                     shape = RoundedCornerShape(percent = 50),
-                    spotColor = Color(0x660099FF),
-                    ambientColor = Color(0x3300E5FF)
+                    spotColor = Color(0x7700E5FF),
+                    ambientColor = Color(0x440088FF)
                 )
                 .clip(RoundedCornerShape(percent = 50))
+                // Glass Base Layer (Translucent Frosted Tint)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xE6132738), // Soft frosted glass cyan-navy
-                            Color(0xF20A1A26)
+                            Color(0x990F2438), // Transparent glassy deep navy-cyan
+                            Color(0xB3061422)  // Transparent bottom glass tint
                         )
                     )
                 )
+                // Specular Glass Border Highlight
                 .border(
-                    width = 1.2.dp,
-                    brush = Brush.verticalGradient(
+                    width = 1.4.dp,
+                    brush = Brush.linearGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.28f),
-                            Color(0x4D00E5FF),
-                            Color.White.copy(alpha = 0.08f)
-                        )
+                            Color.White.copy(alpha = 0.40f), // Glass top reflection
+                            Color(0x8000E5FF),               // Cyan glass glow
+                            Color.White.copy(alpha = 0.12f),
+                            Color(0x400088FF)
+                        ),
+                        start = Offset(0f, 0f),
+                        end = Offset(400f, 100f)
                     ),
                     shape = RoundedCornerShape(percent = 50)
                 )
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            contentAlignment = Alignment.Center
         ) {
+            // 🌊 Animated Liquid Water Waves & Fluid Sheen Layer
+            GlassmorphismLiquidBackground(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(percent = 50))
+            )
+
+            // Top Glass Sheen Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(30.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.14f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            // Navigation Buttons Row
             Row(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -110,6 +149,128 @@ fun FloatingNavBar(
                 }
             }
         }
+    }
+}
+
+/**
+ * Custom Canvas drawing animated fluid water waves and light caustic shimmer
+ * to achieve a living, liquid glassmorphism effect.
+ */
+@Composable
+private fun GlassmorphismLiquidBackground(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "liquid_water_transition")
+
+    // Wave 1: Gentle continuous wave roll
+    val wavePhase1 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(3800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "phase1"
+    )
+
+    // Wave 2: Faster crossing liquid wave
+    val wavePhase2 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(2500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "phase2"
+    )
+
+    // Shimmer: Fluid light sheen sweep across the glass
+    val shimmerOffset by infiniteTransition.animateFloat(
+        initialValue = -0.5f,
+        targetValue = 1.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmer_sweep"
+    )
+
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        if (width <= 0f || height <= 0f) return@Canvas
+
+        // 1. Back fluid wave (Deep translucent luminous cyan wave)
+        val path1 = Path().apply {
+            moveTo(0f, height)
+            val baseWaterLevel = height * 0.50f
+            val waveAmplitude = height * 0.14f
+            var x = 0f
+            while (x <= width) {
+                val y = baseWaterLevel + waveAmplitude * sin((x / width * 2 * Math.PI + wavePhase1).toDouble()).toFloat()
+                lineTo(x, y)
+                x += 8f
+            }
+            lineTo(width, height)
+            close()
+        }
+
+        drawPath(
+            path = path1,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color(0x4400E5FF), // Translucent cyan wave crest
+                    Color(0x300077D4), // Soft ocean body
+                    Color(0x18002844)
+                ),
+                startY = height * 0.30f,
+                endY = height
+            )
+        )
+
+        // 2. Front fluid wave (Bright glistening liquid wave)
+        val path2 = Path().apply {
+            moveTo(0f, height)
+            val baseWaterLevel = height * 0.58f
+            val waveAmplitude = height * 0.11f
+            var x = 0f
+            while (x <= width) {
+                val y = baseWaterLevel + waveAmplitude * sin((x / width * 2 * Math.PI + wavePhase2 + 1.4).toDouble()).toFloat()
+                lineTo(x, y)
+                x += 8f
+            }
+            lineTo(width, height)
+            close()
+        }
+
+        drawPath(
+            path = path2,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color(0x5500F0FF), // Vivid luminous liquid crest
+                    Color(0x350088EA),
+                    Color(0x20041828)
+                ),
+                startY = height * 0.40f,
+                endY = height
+            )
+        )
+
+        // 3. Diagonal light caustic shimmer sweep
+        val shimmerStartX = width * shimmerOffset
+        val shimmerEndX = shimmerStartX + width * 0.35f
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    Color.White.copy(alpha = 0.04f),
+                    Color(0x3300E5FF),
+                    Color.White.copy(alpha = 0.12f),
+                    Color.Transparent
+                ),
+                start = Offset(shimmerStartX, 0f),
+                end = Offset(shimmerEndX, height)
+            ),
+            blendMode = BlendMode.Screen
+        )
     }
 }
 
