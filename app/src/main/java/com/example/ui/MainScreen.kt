@@ -9,40 +9,15 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -53,15 +28,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.data.media.DemoVideoData
 import com.example.data.media.LocalVideoScanner
 import com.example.ui.components.F2WTopBar
 import com.example.ui.navigation.FloatingNavBar
@@ -77,14 +45,6 @@ import com.example.ui.screens.video.VideoItem
 import com.example.ui.screens.video.VideoScreen
 import com.example.ui.screens.video.VideoSearchOverlayScreen
 import com.example.ui.theme.F2WBackground
-import com.example.ui.theme.F2WCardBorder
-import com.example.ui.theme.F2WCyanPrimary
-import com.example.ui.theme.F2WSurface
-import com.example.ui.theme.F2WSurfaceElevated
-import com.example.ui.theme.F2WTextPrimary
-import com.example.ui.theme.F2WTextSecondary
-import com.example.ui.theme.F2WTextTertiary
-import com.example.ui.theme.F2WVioletAccent
 import com.example.util.permission.MediaPermissionManager
 import com.example.util.permission.MediaPermissionType
 import kotlinx.coroutines.launch
@@ -101,7 +61,8 @@ fun MainScreen(
 
     val coroutineScope = rememberCoroutineScope()
     val scanner = remember { LocalVideoScanner.getInstance(context) }
-    val allScannedVideos by scanner.allVideosFlow.collectAsState(initial = emptyList())
+    // Observe persistent Room cache immediately on startup - never starts empty if DB has items
+    val allScannedVideos by scanner.allVideosFlow.collectAsState()
 
     // Request permissions on first launch only
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -119,6 +80,7 @@ fun MainScreen(
             val required = MediaPermissionManager.getRequiredPermissions(MediaPermissionType.ALL_MEDIA)
             permissionLauncher.launch(required)
         } else if (hasAccess) {
+            // Lightweight background sync - retains cached videos while checking MediaStore diff
             scanner.startScan(forceFullRescan = false)
         }
     }
@@ -148,9 +110,10 @@ fun MainScreen(
 
     // Fullscreen XPlayer when a video is clicked and not in mini-player mode
     if (activePlayingVideo != null && (!isFloatingMiniPlayer || isInPipMode)) {
+        val playerQueue = if (currentVideoPlaylist.isNotEmpty()) currentVideoPlaylist else allScannedVideos
         XVideoPlayerScreen(
             video = activePlayingVideo!!,
-            allVideos = currentVideoPlaylist,
+            allVideos = playerQueue,
             isInPipMode = isInPipMode,
             onRequestPip = {
                 onRequestPip()
@@ -252,14 +215,16 @@ fun MainScreen(
             ) { targetTab ->
                 when (targetTab) {
                     NavTab.VIDEO -> VideoScreen(
+                        videos = allScannedVideos,
                         onScanRequest = {
                             coroutineScope.launch {
-                                snackbarHostState.showSnackbar("Local storage scanner initialized for video discovery.")
+                                snackbarHostState.showSnackbar("Local storage scanner initialized.")
                             }
                         },
                         isListView = isListView,
                         onToggleViewMode = { isListView = !isListView },
-                        onVideoClick = { clickedVideo ->
+                        onVideoClick = { clickedVideo, playlist ->
+                            currentVideoPlaylist = playlist
                             activePlayingVideo = clickedVideo
                         }
                     )

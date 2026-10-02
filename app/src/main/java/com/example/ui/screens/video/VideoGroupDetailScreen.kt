@@ -3,7 +3,6 @@ package com.example.ui.screens.video
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,7 +32,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -50,11 +48,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.F2WBackground
 import com.example.ui.theme.F2WCardBorder
 import com.example.ui.theme.F2WCyanPrimary
 import com.example.ui.theme.F2WSurface
-import com.example.ui.theme.F2WSurfaceElevated
 import com.example.ui.theme.F2WTextPrimary
 import com.example.ui.theme.F2WTextSecondary
 import com.example.ui.theme.F2WVioletAccent
@@ -64,7 +60,7 @@ import com.example.ui.theme.F2WVioletAccent
 fun VideoGroupDetailScreen(
     group: VideoNameGroup,
     onBack: () -> Unit,
-    onVideoClick: (VideoItem) -> Unit,
+    onVideoClick: (VideoItem, List<VideoItem>) -> Unit,
     isListView: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -122,7 +118,7 @@ fun VideoGroupDetailScreen(
             // Quick Play All button
             IconButton(
                 onClick = {
-                    group.videos.firstOrNull()?.let { onVideoClick(it) }
+                    group.videos.firstOrNull()?.let { onVideoClick(it, group.videos) }
                 },
                 modifier = Modifier
                     .clip(CircleShape)
@@ -220,7 +216,7 @@ fun VideoGroupDetailScreen(
 
                         Button(
                             onClick = {
-                                group.videos.firstOrNull()?.let { onVideoClick(it) }
+                                group.videos.firstOrNull()?.let { onVideoClick(it, group.videos) }
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = F2WCyanPrimary
@@ -249,13 +245,13 @@ fun VideoGroupDetailScreen(
                 if (isListView) {
                     VideoListCard(
                         video = video,
-                        onClick = { onVideoClick(video) },
+                        onClick = { onVideoClick(video, group.videos) },
                         onMoreOptionsClick = { activeVideoForMenu = video }
                     )
                 } else {
                     VideoThumbnailCard(
                         video = video,
-                        onClick = { onVideoClick(video) },
+                        onClick = { onVideoClick(video, group.videos) },
                         onMoreOptionsClick = { activeVideoForMenu = video }
                     )
                 }

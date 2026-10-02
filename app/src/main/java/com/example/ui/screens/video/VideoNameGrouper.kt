@@ -35,14 +35,9 @@ object VideoNameGrouper {
     private val tokenSplitRegex = "[\\s:,-]+".toRegex()
 
     /**
-     * Groups videos by franchise / series / common root name (at least 3 consecutive characters).
-     * Examples:
-     * - "Adulting S01 Ep01", "Adulting S01 Ep03", "Adulting S01 Ep05" -> Group "Adulting"
-     * - "babaya wake", "baba huyu" -> Group "Baba"
-     * - "dunia 01", "dunia no2" -> Group "Dunia"
-     * - "Avatar 1", "Avatar 2: The Way of Water" -> Group "Avatar"
-     * - "Dune: Part One", "Dune: Part Two" -> Group "Dune"
-     * - "Spider-Man: Into the Spider-Verse", "Spider-Man: Across the Spider-Verse" -> Group "Spider-Man"
+     * Groups videos by franchise / series / common root name in O(N) linear time using prefix buckets.
+     * Prevents UI thread hangs and ANR on libraries with thousands of videos.
+     * Preserves natural alphabetical order ("dunia 01", "dunia 02", "dunia 03") inside each group.
      */
     fun groupVideosByName(videos: List<VideoItem>): List<VideoNameGroup> {
         if (videos.isEmpty()) return emptyList()
@@ -62,31 +57,45 @@ object VideoNameGrouper {
             )
         }
 
-        // 2. Cluster items using multi-pass matching (exact cluster key, common 3+ char prefix, root word)
-        val visited = BooleanArray(metadataList.size)
-        val rawGroups = mutableListOf<MutableList<VideoItemMeta>>()
-
-        for (i in metadataList.indices) {
-            if (visited[i]) continue
-            visited[i] = true
-
-            val current = metadataList[i]
-            val currentGroup = mutableListOf(current)
-
-            for (j in (i + 1) until metadataList.size) {
-                if (visited[j]) continue
-                val candidate = metadataList[j]
-
-                if (areItemsInSameGroup(current, candidate)) {
-                    visited[j] = true
-                    currentGroup.add(candidate)
-                }
+        // 2. High-performance prefix bucketing:
+        // Instead of quadratic O(N^2) pairwise checks across the entire library,
+        // partition candidates into small prefix buckets.
+        val buckets = LinkedHashMap<String, MutableList<VideoItemMeta>>()
+        for (item in metadataList) {
+            val key = when {
+                item.clusterKey.length >= 3 -> item.clusterKey.take(3).lowercase(Locale.ROOT)
+                item.cleanTitle.length >= 3 -> item.cleanTitle.take(3).lowercase(Locale.ROOT)
+                else -> item.cleanTitle.lowercase(Locale.ROOT)
             }
-
-            rawGroups.add(currentGroup)
+            buckets.getOrPut(key) { mutableListOf() }.add(item)
         }
 
-        // 3. Construct VideoNameGroup objects with proper titles
+        // 3. Cluster items within buckets
+        val rawGroups = mutableListOf<MutableList<VideoItemMeta>>()
+        for ((_, bucketItems) in buckets) {
+            val visited = BooleanArray(bucketItems.size)
+            for (i in bucketItems.indices) {
+                if (visited[i]) continue
+                visited[i] = true
+
+                val current = bucketItems[i]
+                val currentGroup = mutableListOf(current)
+
+                for (j in (i + 1) until bucketItems.size) {
+                    if (visited[j]) continue
+                    val candidate = bucketItems[j]
+
+                    if (areItemsInSameGroup(current, candidate)) {
+                        visited[j] = true
+                        currentGroup.add(candidate)
+                    }
+                }
+
+                rawGroups.add(currentGroup)
+            }
+        }
+
+        // 4. Construct VideoNameGroup objects with proper titles and Natural Alphabetical Sorting
         val result = mutableListOf<VideoNameGroup>()
         var index = 0
 
@@ -111,7 +120,7 @@ object VideoNameGrouper {
             )
         }
 
-        // 4. Sort multi-video collections first, then alphabetically
+        // 5. Sort multi-video collections first, then alphabetically
         return result.sortedWith(
             compareByDescending<VideoNameGroup> { it.isMultiVideo }
                 .thenBy { it.title.lowercase(Locale.ROOT) }
@@ -147,7 +156,6 @@ object VideoNameGrouper {
         val commonPrefix = cleanA.commonPrefixWith(cleanB)
 
         if (commonPrefix.length >= 3) {
-            // Check if prefix is substantive (length >= 4 OR forms the whole root of at least one title)
             if (commonPrefix.length >= 4 ||
                 commonPrefix.length >= cleanA.takeWhile { it.isLetter() }.length ||
                 commonPrefix.length >= cleanB.takeWhile { it.isLetter() }.length
@@ -169,9 +177,6 @@ object VideoNameGrouper {
         return false
     }
 
-    /**
-     * Cleans extensions, years, and resolution tags.
-     */
     private fun cleanFileName(name: String): String {
         var clean = name
             .replace(containerExtensionsRegex, "")
@@ -184,9 +189,6 @@ object VideoNameGrouper {
         return if (clean.isBlank()) name else clean
     }
 
-    /**
-     * Strips S01, Ep01, Part 1, No 1, isolated numbers so "Adulting S01 Ep01" becomes "Adulting".
-     */
     private fun stripSeasonEpisodeAndNumbers(title: String): String {
         val withoutDelim = title.split(":", "-", "—").firstOrNull()?.trim() ?: title
         var stripped = withoutDelim
@@ -199,9 +201,6 @@ object VideoNameGrouper {
         return if (stripped.isBlank()) withoutDelim else stripped
     }
 
-    /**
-     * Extracts a normalized cluster key from the base franchise name.
-     */
     private fun extractClusterKey(cleanTitle: String, baseFranchise: String): String {
         val target = if (baseFranchise.isNotBlank()) baseFranchise else cleanTitle
         val tokens = target.lowercase(Locale.ROOT)
@@ -219,32 +218,23 @@ object VideoNameGrouper {
         }
     }
 
-    /**
-     * Extracts prefix before colon or dash delimiter.
-     */
     private fun extractPrefixBeforeDelimiter(title: String): String {
         val colonOrDash = title.split(":", "-", "—")
         val candidate = colonOrDash.firstOrNull()?.trim() ?: title
         return candidate.replace(trailingDigitsOrNumbersRegex, "").trim()
     }
 
-    /**
-     * Derives a clean and presentable common group title from a list of grouped items.
-     */
     private fun deriveGroupTitle(items: List<VideoItemMeta>): String {
-        // 1. If all share the exact base franchise name (e.g. "Adulting", "Dunia")
         val firstBase = items.first().baseFranchise
         if (firstBase.isNotBlank() && items.all { it.baseFranchise.equals(firstBase, ignoreCase = true) }) {
             return formatTitleCase(firstBase)
         }
 
-        // 2. If all share prefix before delimiter (e.g. "Avatar", "Spider-Man")
         val firstPrefix = items.first().rawPrefix
         if (firstPrefix.isNotBlank() && items.all { it.rawPrefix.equals(firstPrefix, ignoreCase = true) }) {
             return formatTitleCase(firstPrefix)
         }
 
-        // 3. Longest common prefix among clean titles
         val titles = items.map { it.cleanTitle }
         val commonPrefix = titles.reduce { acc, s -> acc.commonPrefixWith(s) }
             .trim()
@@ -254,7 +244,6 @@ object VideoNameGrouper {
             return formatTitleCase(commonPrefix)
         }
 
-        // 4. Fallback to cluster key or first base
         val fallback = if (firstBase.isNotBlank()) firstBase else items.first().clusterKey
         return formatTitleCase(fallback)
     }

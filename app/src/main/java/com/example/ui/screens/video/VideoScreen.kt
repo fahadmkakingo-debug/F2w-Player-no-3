@@ -4,9 +4,6 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,7 +26,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.VideoLibrary
@@ -40,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -75,6 +70,8 @@ import com.example.ui.theme.F2WTextPrimary
 import com.example.ui.theme.F2WTextSecondary
 import com.example.ui.theme.F2WTextTertiary
 import com.example.util.permission.MediaPermissionType
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,7 +83,7 @@ fun VideoScreen(
     folders: List<VideoFolder> = emptyList(),
     isListView: Boolean = false,
     onToggleViewMode: () -> Unit = {},
-    onVideoClick: (VideoItem) -> Unit = {},
+    onVideoClick: (VideoItem, List<VideoItem>) -> Unit = { _, _ -> },
     onFolderClick: (VideoFolder) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -95,8 +92,8 @@ fun VideoScreen(
     val recentlyPlayedManager = remember { RecentlyPlayedManager.getInstance(context) }
     val recentlyPlayedIds by recentlyPlayedManager.recentlyPlayedIds.collectAsState()
 
-    // Observe persistent Room cached videos flow
-    val dbVideos by scanner.allVideosFlow.collectAsState(initial = videos)
+    // Observe persistent Room cached videos flow - starts with database snapshot
+    val dbVideos by scanner.allVideosFlow.collectAsState()
     val scanProgress by scanner.scanProgressState.collectAsState()
 
     val videoSettings = remember { com.example.data.settings.VideoSettingsPreferences(context) }
@@ -133,25 +130,20 @@ fun VideoScreen(
         }
     )
 
-    // Trigger initial background scan if permission is granted - only if database is empty
-    LaunchedEffect(mediaPermissionState.hasAccess) {
-        if (mediaPermissionState.hasAccess) {
-            val currentVideos = scanner.scanDeviceVideos() // Use suspend function to get snapshot
-            if (currentVideos.isEmpty()) {
-                scanner.startScan(forceFullRescan = false)
-            }
-        }
-    }
-
-    // ContentObserver to trigger incremental scan when new video is added to device
+    // Debounced ContentObserver to detect newly downloaded or deleted videos
     DisposableEffect(mediaPermissionState.hasAccess) {
         if (!mediaPermissionState.hasAccess) return@DisposableEffect onDispose {}
 
+        var scanJob: Job? = null
         val contentObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
                 super.onChange(selfChange)
-                if (!scanProgress.isScanning) {
-                    scanner.startScan(forceFullRescan = false)
+                scanJob?.cancel()
+                scanJob = coroutineScope.launch {
+                    delay(3000) // Debounce by 3 seconds to avoid spamming scans
+                    if (!scanner.scanProgressState.value.isScanning) {
+                        scanner.startScan(forceFullRescan = false)
+                    }
                 }
             }
         }
@@ -165,15 +157,18 @@ fun VideoScreen(
         } catch (_: Exception) {}
 
         onDispose {
+            scanJob?.cancel()
             try {
                 context.contentResolver.unregisterContentObserver(contentObserver)
             } catch (_: Exception) {}
         }
     }
 
-    val availableVideos = remember(dbVideos, movedVaultPaths) {
-        if (movedVaultPaths.isEmpty()) dbVideos
-        else dbVideos.filter { v ->
+    val effectiveVideos = if (dbVideos.isNotEmpty()) dbVideos else videos
+
+    val availableVideos = remember(effectiveVideos, movedVaultPaths) {
+        if (movedVaultPaths.isEmpty()) effectiveVideos
+        else effectiveVideos.filter { v ->
             !movedVaultPaths.contains(v.uriString.lowercase()) &&
             !movedVaultPaths.any { path -> path.isNotBlank() && path.endsWith(v.title.lowercase()) }
         }
@@ -299,14 +294,13 @@ fun VideoScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Divider Line below fixed panel
             HorizontalDivider(
                 color = F2WCardBorder,
                 thickness = 1.dp
             )
         }
 
-        // Linear Progress bar during scanning if total count is known - Only show if it is actually scanning to avoid layout jitter
+        // Linear Progress bar during background syncing without hiding existing videos
         if (scanProgress.isScanning) {
             LinearProgressIndicator(
                 progress = { scanProgress.progressFraction },
@@ -332,7 +326,7 @@ fun VideoScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Status bar showing active mode, video count, and scan progress/cancellation
+            // Status bar showing active mode, video count, and scan progress
             item(span = { GridItemSpan(columnsCount) }) {
                 Row(
                     modifier = Modifier
@@ -366,9 +360,9 @@ fun VideoScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = if (scanProgress.totalCount > 0) {
-                                    "Scanning (${scanProgress.scannedCount}/${scanProgress.totalCount})"
+                                    "Syncing (${scanProgress.scannedCount}/${scanProgress.totalCount})"
                                 } else {
-                                    "Scanning..."
+                                    "Syncing..."
                                 },
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = F2WCyanPrimary,
@@ -417,7 +411,7 @@ fun VideoScreen(
                                 "Videos with matching or similar movie names will be automatically grouped here in 2 columns."
                             else
                                 "Storage permission is required to discover and group video files.",
-                            actionLabel = if (mediaPermissionState.hasAccess) "Scan Device Videos" else "Grant Storage Permission",
+                            actionLabel = if (mediaPermissionState.hasAccess) "Scan Video Za Simu" else "Grant Storage Permission",
                             actionIcon = Icons.Filled.Refresh,
                             onActionClick = {
                                 if (mediaPermissionState.hasAccess) {
@@ -459,7 +453,7 @@ fun VideoScreen(
                                 "Video folders on your device (e.g. Movies, Downloads, Camera) will be displayed here in 2 columns once storage is scanned."
                             else
                                 "Storage permission is required to list device video folders.",
-                            actionLabel = if (mediaPermissionState.hasAccess) "Scan Device Videos" else "Grant Storage Permission",
+                            actionLabel = if (mediaPermissionState.hasAccess) "Scan Video Za Simu" else "Grant Storage Permission",
                             actionIcon = Icons.Filled.Refresh,
                             onActionClick = {
                                 if (mediaPermissionState.hasAccess) {
@@ -549,13 +543,13 @@ fun VideoScreen(
                                         scanner.updateFavorite(video.id, newFav)
                                     }
                                 },
-                                onClick = { onVideoClick(video) },
+                                onClick = { onVideoClick(video, displayedVideos) },
                                 onMoreOptionsClick = { activeVideoForMenu = video }
                             )
                         } else {
                             VideoThumbnailCard(
                                 video = video,
-                                onClick = { onVideoClick(video) },
+                                onClick = { onVideoClick(video, displayedVideos) },
                                 onMoreOptionsClick = { activeVideoForMenu = video }
                             )
                         }
@@ -627,9 +621,7 @@ private fun FilterPillButton(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            // Icon
             if (mode == VideoFilterMode.RECENTLY_ADDED) {
-                // "NEW" badge box
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(3.dp))

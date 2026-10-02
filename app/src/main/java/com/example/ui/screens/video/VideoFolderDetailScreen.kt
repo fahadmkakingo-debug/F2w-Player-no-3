@@ -60,7 +60,7 @@ import com.example.ui.theme.F2WVioletAccent
 fun VideoFolderDetailScreen(
     folder: VideoFolder,
     onBack: () -> Unit,
-    onVideoClick: (VideoItem) -> Unit,
+    onVideoClick: (VideoItem, List<VideoItem>) -> Unit,
     isListView: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -120,7 +120,7 @@ fun VideoFolderDetailScreen(
             // Quick Play All button
             IconButton(
                 onClick = {
-                    folder.videos.firstOrNull()?.let { onVideoClick(it) }
+                    folder.videos.firstOrNull()?.let { onVideoClick(it, folder.videos) }
                 },
                 modifier = Modifier
                     .clip(CircleShape)
@@ -218,7 +218,7 @@ fun VideoFolderDetailScreen(
 
                         Button(
                             onClick = {
-                                folder.videos.firstOrNull()?.let { onVideoClick(it) }
+                                folder.videos.firstOrNull()?.let { onVideoClick(it, folder.videos) }
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = F2WCyanPrimary
@@ -247,13 +247,13 @@ fun VideoFolderDetailScreen(
                 if (isListView) {
                     VideoListCard(
                         video = video,
-                        onClick = { onVideoClick(video) },
+                        onClick = { onVideoClick(video, folder.videos) },
                         onMoreOptionsClick = { activeVideoForMenu = video }
                     )
                 } else {
                     VideoThumbnailCard(
                         video = video,
-                        onClick = { onVideoClick(video) },
+                        onClick = { onVideoClick(video, folder.videos) },
                         onMoreOptionsClick = { activeVideoForMenu = video }
                     )
                 }

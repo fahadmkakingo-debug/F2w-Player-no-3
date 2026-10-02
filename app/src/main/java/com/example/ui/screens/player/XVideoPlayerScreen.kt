@@ -76,6 +76,7 @@ fun XVideoPlayerScreen(
     val recentlyPlayedManager = remember { RecentlyPlayedManager.getInstance(context) }
 
     var currentVideo by remember { mutableStateOf(video) }
+    var currentPlaylist by remember(allVideos) { mutableStateOf(allVideos) }
 
     // ExoPlayer Instance
     val exoPlayer = remember {
@@ -199,19 +200,19 @@ fun XVideoPlayerScreen(
                         exoPlayer.seekTo(0L)
                         exoPlayer.play()
                     } else if (repeatMode == "Repeat All") {
-                        val currentIndex = allVideos.indexOfFirst { it.id == currentVideo.id }
-                        val nextVideo = if (currentIndex != -1 && currentIndex < allVideos.size - 1) {
-                            allVideos[currentIndex + 1]
+                        val currentIndex = currentPlaylist.indexOfFirst { it.id == currentVideo.id }
+                        val nextVideo = if (currentIndex != -1 && currentIndex < currentPlaylist.size - 1) {
+                            currentPlaylist[currentIndex + 1]
                         } else {
-                            allVideos.firstOrNull() ?: currentVideo
+                            currentPlaylist.firstOrNull() ?: currentVideo
                         }
                         currentVideo = nextVideo
                         onVideoChange(nextVideo)
                     } else {
                         // Sequential order playback: if there is a next video in the queue, auto-play it!
-                        val currentIndex = allVideos.indexOfFirst { it.id == currentVideo.id }
-                        if (currentIndex != -1 && currentIndex < allVideos.size - 1) {
-                            val nextVideo = allVideos[currentIndex + 1]
+                        val currentIndex = currentPlaylist.indexOfFirst { it.id == currentVideo.id }
+                        if (currentIndex != -1 && currentIndex < currentPlaylist.size - 1) {
+                            val nextVideo = currentPlaylist[currentIndex + 1]
                             currentVideo = nextVideo
                             onVideoChange(nextVideo)
                         }
@@ -307,13 +308,13 @@ fun XVideoPlayerScreen(
     }
 
     fun skipNextVideo() {
-        val currentIndex = allVideos.indexOfFirst { it.id == currentVideo.id }
-        if (currentIndex != -1 && currentIndex < allVideos.size - 1) {
-            val nextVideo = allVideos[currentIndex + 1]
+        val currentIndex = currentPlaylist.indexOfFirst { it.id == currentVideo.id }
+        if (currentIndex != -1 && currentIndex < currentPlaylist.size - 1) {
+            val nextVideo = currentPlaylist[currentIndex + 1]
             currentVideo = nextVideo
             onVideoChange(nextVideo)
-        } else if (allVideos.isNotEmpty()) {
-            val first = allVideos.first()
+        } else if (currentPlaylist.isNotEmpty()) {
+            val first = currentPlaylist.first()
             currentVideo = first
             onVideoChange(first)
         }
@@ -323,9 +324,9 @@ fun XVideoPlayerScreen(
         if (currentPositionMs > 5000L) {
             seekToPosition(0L)
         } else {
-            val currentIndex = allVideos.indexOfFirst { it.id == currentVideo.id }
+            val currentIndex = currentPlaylist.indexOfFirst { it.id == currentVideo.id }
             if (currentIndex > 0) {
-                val prevVideo = allVideos[currentIndex - 1]
+                val prevVideo = currentPlaylist[currentIndex - 1]
                 currentVideo = prevVideo
                 onVideoChange(prevVideo)
             } else {
@@ -770,11 +771,14 @@ fun XVideoPlayerScreen(
     // Playlist Queue Bottom Sheet
     if (showPlaylistQueue) {
         PlaylistQueueBottomSheet(
-            videos = allVideos,
+            videos = currentPlaylist,
             currentVideoId = currentVideo.id,
             onVideoSelected = { videoItem ->
                 currentVideo = videoItem
                 onVideoChange(videoItem)
+            },
+            onQueueReordered = { updatedQueue ->
+                currentPlaylist = updatedQueue
             },
             onDismissRequest = { showPlaylistQueue = false }
         )
