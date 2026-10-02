@@ -274,11 +274,14 @@ class VideoPlaybackService : Service() {
         }
 
         fun stop(context: Context) {
-            val intent = Intent(context, VideoPlaybackService::class.java).apply {
-                action = ACTION_STOP
-            }
             try {
+                val intent = Intent(context, VideoPlaybackService::class.java).apply {
+                    action = ACTION_STOP
+                }
                 context.startService(intent)
+                context.stopService(Intent(context, VideoPlaybackService::class.java))
+                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                nm?.cancel(NOTIFICATION_ID)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

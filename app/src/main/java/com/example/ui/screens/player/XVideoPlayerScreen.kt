@@ -311,6 +311,7 @@ fun XVideoPlayerScreen(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
                         player = exoPlayer
+                        setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                         useController = false
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                         layoutParams = FrameLayout.LayoutParams(
@@ -333,7 +334,9 @@ fun XVideoPlayerScreen(
                     }
                 },
                 update = { pv ->
-                    pv.player = exoPlayer
+                    if (pv.player != exoPlayer) {
+                        pv.player = exoPlayer
+                    }
                     playerViewRef = pv
                 },
                 modifier = Modifier
