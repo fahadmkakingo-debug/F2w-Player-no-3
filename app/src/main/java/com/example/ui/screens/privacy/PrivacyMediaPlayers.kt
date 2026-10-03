@@ -115,8 +115,16 @@ fun PrivacyVideoPlayerScreen(
 
     val context = LocalContext.current
     val vaultManager = remember { com.example.data.security.PrivacyVaultManager.getInstance(context) }
-    val videoFile = remember(item.vaultPath) {
-        vaultManager.getDecryptedTempFile(item) ?: File(item.vaultPath)
+
+    var videoFile by remember { mutableStateOf<File?>(null) }
+    var isDecrypting by remember { mutableStateOf(true) }
+
+    LaunchedEffect(item.vaultPath) {
+        isDecrypting = true
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            videoFile = vaultManager.getDecryptedTempFile(item)
+            isDecrypting = false
+        }
     }
 
     var isPlaying by remember { mutableStateOf(true) }
@@ -124,11 +132,13 @@ fun PrivacyVideoPlayerScreen(
     var durationMs by remember { mutableLongStateOf(item.durationMs) }
     var showControls by remember { mutableStateOf(true) }
 
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(Uri.fromFile(videoFile)))
-            prepare()
-            playWhenReady = true
+    val exoPlayer = remember(videoFile) {
+        videoFile?.let { file ->
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+                prepare()
+                playWhenReady = true
+            }
         }
     }
 
@@ -140,23 +150,23 @@ fun PrivacyVideoPlayerScreen(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
-                    if (exoPlayer.duration > 0) {
-                        durationMs = exoPlayer.duration
+                    if (exoPlayer?.duration ?: 0 > 0) {
+                        durationMs = exoPlayer?.duration ?: 0L
                     }
                 }
             }
         }
-        exoPlayer.addListener(listener)
+        exoPlayer?.addListener(listener)
 
         onDispose {
-            exoPlayer.removeListener(listener)
-            exoPlayer.release()
+            exoPlayer?.removeListener(listener)
+            exoPlayer?.release()
         }
     }
 
     // Progress update loop
     LaunchedEffect(exoPlayer) {
-        while (true) {
+        while (exoPlayer != null) {
             if (exoPlayer.isPlaying) {
                 currentPositionMs = exoPlayer.currentPosition
                 if (exoPlayer.duration > 0) {
@@ -186,20 +196,36 @@ fun PrivacyVideoPlayerScreen(
             )
             .testTag("privacy_video_player_screen")
     ) {
-        // Video View
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = false
-                    layoutParams = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+        if (isDecrypting || exoPlayer == null) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator(color = F2WCyanPrimary)
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Ina-decrypt faili ya video...",
+                    color = Color.White,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        } else {
+            // Video View
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = exoPlayer
+                        useController = false
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // Overlay Controls
         AnimatedVisibility(
@@ -294,8 +320,9 @@ fun PrivacyVideoPlayerScreen(
                 ) {
                     IconButton(
                         onClick = {
-                            val newPos = (exoPlayer.currentPosition - 10000).coerceAtLeast(0)
-                            exoPlayer.seekTo(newPos)
+                            val current = exoPlayer?.currentPosition ?: 0L
+                            val newPos = (current - 10000).coerceAtLeast(0)
+                            exoPlayer?.seekTo(newPos)
                         },
                         modifier = Modifier.size(48.dp)
                     ) {
@@ -313,7 +340,7 @@ fun PrivacyVideoPlayerScreen(
                             .clip(CircleShape)
                             .background(F2WCyanPrimary)
                             .clickable {
-                                if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+                                if (isPlaying) exoPlayer?.pause() else exoPlayer?.play()
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -327,8 +354,9 @@ fun PrivacyVideoPlayerScreen(
 
                     IconButton(
                         onClick = {
-                            val newPos = (exoPlayer.currentPosition + 10000).coerceAtMost(durationMs)
-                            exoPlayer.seekTo(newPos)
+                            val current = exoPlayer?.currentPosition ?: 0L
+                            val newPos = (current + 10000).coerceAtMost(durationMs)
+                            exoPlayer?.seekTo(newPos)
                         },
                         modifier = Modifier.size(48.dp)
                     ) {
@@ -362,7 +390,7 @@ fun PrivacyVideoPlayerScreen(
                         onValueChange = { fraction ->
                             val seekMs = (fraction * durationMs).toLong()
                             currentPositionMs = seekMs
-                            exoPlayer.seekTo(seekMs)
+                            exoPlayer?.seekTo(seekMs)
                         },
                         thumb = {},
                         colors = SliderDefaults.colors(
@@ -401,19 +429,29 @@ fun PrivacyAudioPlayerDialog(
 ) {
     val context = LocalContext.current
     val vaultManager = remember { com.example.data.security.PrivacyVaultManager.getInstance(context) }
-    val audioFile = remember(item.vaultPath) {
-        vaultManager.getDecryptedTempFile(item) ?: File(item.vaultPath)
+
+    var audioFile by remember { mutableStateOf<File?>(null) }
+    var isDecrypting by remember { mutableStateOf(true) }
+
+    LaunchedEffect(item.vaultPath) {
+        isDecrypting = true
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            audioFile = vaultManager.getDecryptedTempFile(item)
+            isDecrypting = false
+        }
     }
 
     var isPlaying by remember { mutableStateOf(true) }
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(item.durationMs) }
 
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(Uri.fromFile(audioFile)))
-            prepare()
-            playWhenReady = true
+    val exoPlayer = remember(audioFile) {
+        audioFile?.let { file ->
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+                prepare()
+                playWhenReady = true
+            }
         }
     }
 
@@ -425,22 +463,22 @@ fun PrivacyAudioPlayerDialog(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
-                    if (exoPlayer.duration > 0) {
-                        durationMs = exoPlayer.duration
+                    if (exoPlayer?.duration ?: 0 > 0) {
+                        durationMs = exoPlayer?.duration ?: 0L
                     }
                 }
             }
         }
-        exoPlayer.addListener(listener)
+        exoPlayer?.addListener(listener)
 
         onDispose {
-            exoPlayer.removeListener(listener)
-            exoPlayer.release()
+            exoPlayer?.removeListener(listener)
+            exoPlayer?.release()
         }
     }
 
     LaunchedEffect(exoPlayer) {
-        while (true) {
+        while (exoPlayer != null) {
             if (exoPlayer.isPlaying) {
                 currentPositionMs = exoPlayer.currentPosition
                 if (exoPlayer.duration > 0) {
@@ -518,7 +556,7 @@ fun PrivacyAudioPlayerDialog(
                     onValueChange = { fraction ->
                         val seekMs = (fraction * durationMs).toLong()
                         currentPositionMs = seekMs
-                        exoPlayer.seekTo(seekMs)
+                        exoPlayer?.seekTo(seekMs)
                     },
                     colors = SliderDefaults.colors(
                         thumbColor = F2WVioletAccent,
@@ -545,8 +583,9 @@ fun PrivacyAudioPlayerDialog(
                 ) {
                     IconButton(
                         onClick = {
-                            val newPos = (exoPlayer.currentPosition - 10000).coerceAtLeast(0)
-                            exoPlayer.seekTo(newPos)
+                            val current = exoPlayer?.currentPosition ?: 0L
+                            val newPos = (current - 10000).coerceAtLeast(0)
+                            exoPlayer?.seekTo(newPos)
                         },
                         modifier = Modifier.size(42.dp)
                     ) {
@@ -564,7 +603,7 @@ fun PrivacyAudioPlayerDialog(
                             .clip(CircleShape)
                             .background(F2WVioletAccent)
                             .clickable {
-                                if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+                                if (isPlaying) exoPlayer?.pause() else exoPlayer?.play()
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -578,8 +617,9 @@ fun PrivacyAudioPlayerDialog(
 
                     IconButton(
                         onClick = {
-                            val newPos = (exoPlayer.currentPosition + 10000).coerceAtMost(durationMs)
-                            exoPlayer.seekTo(newPos)
+                            val current = exoPlayer?.currentPosition ?: 0L
+                            val newPos = (current + 10000).coerceAtMost(durationMs)
+                            exoPlayer?.seekTo(newPos)
                         },
                         modifier = Modifier.size(42.dp)
                     ) {
@@ -653,8 +693,16 @@ fun PrivacyImageViewerDialog(
 ) {
     val context = LocalContext.current
     val vaultManager = remember { com.example.data.security.PrivacyVaultManager.getInstance(context) }
-    val imageFile = remember(item.vaultPath) {
-        vaultManager.getDecryptedTempFile(item) ?: File(item.vaultPath)
+
+    var imageFile by remember { mutableStateOf<File?>(null) }
+    var isDecrypting by remember { mutableStateOf(true) }
+
+    LaunchedEffect(item.vaultPath) {
+        isDecrypting = true
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            imageFile = vaultManager.getDecryptedTempFile(item)
+            isDecrypting = false
+        }
     }
 
     AlertDialog(
@@ -700,12 +748,16 @@ fun PrivacyImageViewerDialog(
                     .background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = imageFile,
-                    contentDescription = item.fileName,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (isDecrypting || imageFile == null) {
+                    CircularProgressIndicator(color = F2WCyanPrimary)
+                } else {
+                    AsyncImage(
+                        model = imageFile,
+                        contentDescription = item.fileName,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         },
         confirmButton = {

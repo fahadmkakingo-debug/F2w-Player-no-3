@@ -582,23 +582,36 @@ class PrivacyVaultManager private constructor(context: Context) {
         if (!encryptedFile.exists()) return null
 
         val dotIdx = item.fileName.lastIndexOf('.')
-        val ext = if (dotIdx != -1) item.fileName.substring(dotIdx) else ".tmp"
+        val ext = if (dotIdx != -1) item.fileName.substring(dotIdx) else when (item.mediaType.uppercase()) {
+            "VIDEO" -> ".mp4"
+            "AUDIO" -> ".mp3"
+            else -> ".jpg"
+        }
 
         val tempDir = File(appContext.cacheDir, "vault_temp_play")
         if (!tempDir.exists()) tempDir.mkdirs()
 
-        val tempFile = File(tempDir, "play_${item.id.replace("[^a-zA-Z0-9]".toRegex(), "_")}$ext")
+        val cleanId = item.id.replace("[^a-zA-Z0-9]".toRegex(), "_")
+        val tempFile = File(tempDir, "play_${cleanId}$ext")
 
+        if (tempFile.exists() && tempFile.length() > 0) {
+            return tempFile
+        }
+
+        val partFile = File(tempDir, "play_${cleanId}.part")
         try {
-            if (tempFile.exists() && tempFile.length() > 0) {
+            if (partFile.exists()) partFile.delete()
+            VaultCryptoManager.decryptFileToTempFile(encryptedFile, partFile, key)
+            if (partFile.exists() && partFile.length() > 0) {
+                if (tempFile.exists()) tempFile.delete()
+                partFile.renameTo(tempFile)
+                tempFile.deleteOnExit()
                 return tempFile
             }
-            VaultCryptoManager.decryptFileToTempFile(encryptedFile, tempFile, key)
-            tempFile.deleteOnExit()
-            return tempFile
         } catch (_: Exception) {
-            return null
+            try { if (partFile.exists()) partFile.delete() } catch (_: Exception) {}
         }
+        return null
     }
 
     /**

@@ -216,6 +216,11 @@ class PrivacySecurityManager(context: Context) {
                     executor,
                     object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationSucceeded(result: android.hardware.biometrics.BiometricPrompt.AuthenticationResult?) {
+                            val vaultManager = PrivacyVaultManager.getInstance(appContext)
+                            val storedHash = prefs.getString(KEY_PIN_HASH, null)
+                            if (storedHash != null) {
+                                vaultManager.unlockVaultWithPinOrAnswer(storedHash, isAnswer = false)
+                            }
                             onSuccess()
                         }
 

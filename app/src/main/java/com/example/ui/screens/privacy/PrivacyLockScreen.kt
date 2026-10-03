@@ -57,15 +57,17 @@ fun PrivacyLockScreen(
     var isPinError by remember { mutableStateOf(false) }
     var showForgotPinDialog by remember { mutableStateOf(false) }
 
+    var hasPromptedBiometrics by remember { mutableStateOf(false) }
+
     val isFingerprintEnabled = remember { securityManager.isFingerprintEnabled() }
     val isBiometricSupported = remember { securityManager.isDeviceBiometricSupported(context) }
 
     val triggerBiometrics = {
-        if (isFingerprintEnabled && isBiometricSupported) {
+        if (isFingerprintEnabled && isBiometricSupported && !hasPromptedBiometrics) {
+            hasPromptedBiometrics = true
             securityManager.authenticateWithBiometrics(
                 context = context,
                 onSuccess = {
-                    Toast.makeText(context, "Biometric verified!", Toast.LENGTH_SHORT).show()
                     onUnlockSuccess()
                 },
                 onError = { error ->
@@ -78,9 +80,9 @@ fun PrivacyLockScreen(
         }
     }
 
-    // Attempt biometric prompt on initial entry if enabled
+    // Attempt biometric prompt once on initial entry if enabled
     LaunchedEffect(Unit) {
-        if (isFingerprintEnabled && isBiometricSupported) {
+        if (isFingerprintEnabled && isBiometricSupported && !hasPromptedBiometrics) {
             triggerBiometrics()
         }
     }

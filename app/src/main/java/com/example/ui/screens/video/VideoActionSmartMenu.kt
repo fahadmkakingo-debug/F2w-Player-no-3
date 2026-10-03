@@ -322,8 +322,29 @@ fun VideoActionSmartMenu(
                     onClick = {
                         showLockConfirmDialog = false
                         onDismissRequest()
-                        onLockInPrivateFolder(video)
-                        Toast.makeText(context, "\"${video.title}\" imefungwa kwenye Private Folder!", Toast.LENGTH_SHORT).show()
+                        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            val vaultManager = com.example.data.security.PrivacyVaultManager.getInstance(context)
+                            val uriObj = try { Uri.parse(video.uriString) } catch (_: Exception) { Uri.EMPTY }
+                            val deviceMedia = com.example.data.security.DeviceMediaFile(
+                                id = video.id,
+                                title = video.title,
+                                uri = uriObj,
+                                path = uriObj.path ?: "",
+                                sizeBytes = 0L,
+                                durationMs = video.durationMs
+                            )
+                            val result = vaultManager.moveDeviceFilesToVault(listOf(deviceMedia), "VIDEO")
+                            if (result.successCount > 0) {
+                                onLockInPrivateFolder(video)
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    Toast.makeText(context, "\"${video.title}\" imehamishwa kwenye Privacy Vault!", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    Toast.makeText(context, "Imeshindikana kuhamisha: " + (result.errors.firstOrNull() ?: "Vault error"), Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = F2WCyanPrimary)
                 ) {

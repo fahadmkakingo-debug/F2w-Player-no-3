@@ -479,30 +479,34 @@ fun PrivacyFilePickerListScreen(
                     onClick = {
                         if (!isMoving) {
                             isMoving = true
-                            coroutineScope.launch {
+                            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                 val result = vaultManager.moveDeviceFilesToVault(
                                     files = selectedFiles.toList(),
                                     mediaType = type.name,
                                     onProgress = { current, total ->
-                                        moveProgressText = "Moving file $current of $total..."
+                                        coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                                            moveProgressText = "Moving file $current of $total..."
+                                        }
                                     }
                                 )
-                                isMoving = false
-                                showConfirmMoveDialog = false
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    isMoving = false
+                                    showConfirmMoveDialog = false
 
-                                if (result.successCount > 0) {
-                                    Toast.makeText(
-                                        context,
-                                        "Successfully moved ${result.successCount} file(s) to Privacy!",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    onFilesMovedSuccess()
-                                } else if (result.failedCount > 0) {
-                                    Toast.makeText(
-                                        context,
-                                        "Failed: ${result.errors.firstOrNull() ?: "Could not move files"}",
-                                        Toast.LENGTH_LONG
-                                    ).show()
+                                    if (result.successCount > 0) {
+                                        Toast.makeText(
+                                            context,
+                                            "Successfully moved ${result.successCount} file(s) to Privacy!",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        onFilesMovedSuccess()
+                                    } else if (result.failedCount > 0) {
+                                        Toast.makeText(
+                                            context,
+                                            "Failed: ${result.errors.firstOrNull() ?: "Could not move files"}",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
                                 }
                             }
                         }
