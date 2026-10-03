@@ -6,6 +6,7 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import com.example.data.database.F2WDatabase
 import com.example.data.database.VideoMediaEntity
 import com.example.data.security.PrivacyVaultManager
@@ -180,25 +181,31 @@ class LocalVideoScanner(private val context: Context) {
                     val mediaStoreMap = HashMap<String, Long>()
                     val validMediaIds = HashSet<String>()
 
-                    val cursorLight = appContext.contentResolver.query(
-                        MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                        lightProjection,
-                        null,
-                        null,
-                        "${MediaStore.Video.Media.DATE_ADDED} DESC"
-                    )
+                    try {
+                        val cursorLight = appContext.contentResolver.query(
+                            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                            lightProjection,
+                            null,
+                            null,
+                            "${MediaStore.Video.Media.DATE_ADDED} DESC"
+                        )
 
-                    cursorLight?.use { cursor ->
-                        val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
-                        val dateModCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
+                        cursorLight?.use { cursor ->
+                            val idCol = cursor.getColumnIndex(MediaStore.Video.Media._ID)
+                            val dateModCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
 
-                        while (cursor.moveToNext()) {
-                            ensureActive()
-                            val id = cursor.getLong(idCol).toString()
-                            val dateMod = if (dateModCol != -1) cursor.getLong(dateModCol) else 0L
-                            mediaStoreMap[id] = dateMod
-                            validMediaIds.add(id)
+                            while (cursor.moveToNext()) {
+                                ensureActive()
+                                if (idCol != -1) {
+                                    val id = cursor.getLong(idCol).toString()
+                                    val dateMod = if (dateModCol != -1) cursor.getLong(dateModCol) else 0L
+                                    mediaStoreMap[id] = dateMod
+                                    validMediaIds.add(id)
+                                }
+                            }
                         }
+                    } catch (e: Throwable) {
+                        Log.e("LocalVideoScanner", "Error querying light cursor", e)
                     }
 
                     // Step 1b: Discover custom .dd0 video files from device storage and MediaStore Files
@@ -299,34 +306,36 @@ class LocalVideoScanner(private val context: Context) {
                                 "${MediaStore.Video.Media._ID} IN (${ids.joinToString(",")})"
                             }
 
-                            val fullCursor = appContext.contentResolver.query(
-                                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                                fullProjection,
-                                selection,
-                                null,
-                                "${MediaStore.Video.Media.DATE_ADDED} DESC"
-                            )
+                            try {
+                                val fullCursor = appContext.contentResolver.query(
+                                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                                    fullProjection,
+                                    selection,
+                                    null,
+                                    "${MediaStore.Video.Media.DATE_ADDED} DESC"
+                                )
 
-                            fullCursor?.use { cursor ->
-                                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
-                                val nameCol = cursor.getColumnIndex(MediaStore.Video.Media.DISPLAY_NAME)
-                                val titleCol = cursor.getColumnIndex(MediaStore.Video.Media.TITLE)
-                                val durCol = cursor.getColumnIndex(MediaStore.Video.Media.DURATION)
-                                val sizeCol = cursor.getColumnIndex(MediaStore.Video.Media.SIZE)
-                                val widthCol = cursor.getColumnIndex(MediaStore.Video.Media.WIDTH)
-                                val heightCol = cursor.getColumnIndex(MediaStore.Video.Media.HEIGHT)
-                                val dateAddCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_ADDED)
-                                val dateModCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
-                                val bucketCol = cursor.getColumnIndex(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
+                                fullCursor?.use { cursor ->
+                                    val idCol = cursor.getColumnIndex(MediaStore.Video.Media._ID)
+                                    val nameCol = cursor.getColumnIndex(MediaStore.Video.Media.DISPLAY_NAME)
+                                    val titleCol = cursor.getColumnIndex(MediaStore.Video.Media.TITLE)
+                                    val durCol = cursor.getColumnIndex(MediaStore.Video.Media.DURATION)
+                                    val sizeCol = cursor.getColumnIndex(MediaStore.Video.Media.SIZE)
+                                    val widthCol = cursor.getColumnIndex(MediaStore.Video.Media.WIDTH)
+                                    val heightCol = cursor.getColumnIndex(MediaStore.Video.Media.HEIGHT)
+                                    val dateAddCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_ADDED)
+                                    val dateModCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
+                                    val bucketCol = cursor.getColumnIndex(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
 
-                                while (cursor.moveToNext()) {
-                                    ensureActive()
-                                    val idNum = cursor.getLong(idCol)
-                                    val id = idNum.toString()
+                                    if (idCol != -1) {
+                                        while (cursor.moveToNext()) {
+                                            ensureActive()
+                                            val idNum = cursor.getLong(idCol)
+                                            val id = idNum.toString()
 
-                                    if (selection == null && !fetchSet.contains(id)) {
-                                        continue
-                                    }
+                                            if (selection == null && !fetchSet.contains(id)) {
+                                                continue
+                                            }
 
                                     val rawName = if (nameCol != -1) cursor.getString(nameCol) else null
                                     val rawTitle = if (titleCol != -1) cursor.getString(titleCol) else null
@@ -410,7 +419,11 @@ class LocalVideoScanner(private val context: Context) {
                                 }
                             }
                         }
+                    } catch (e: Throwable) {
+                        Log.e("LocalVideoScanner", "Error querying fullCursor chunk", e)
                     }
+                }
+            }
 
                     // Step 4: Process custom .dd0 video files
                     for (dd0File in dd0FilesToProcess) {
@@ -458,7 +471,7 @@ class LocalVideoScanner(private val context: Context) {
                         statusMessage = "Scan cancelled."
                     )
                     throw e
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     _scanProgressState.value = ScanProgressState(
                         isScanning = false,
                         statusMessage = "Scan completed with warnings: ${e.localizedMessage ?: "Unknown error"}"
@@ -484,12 +497,11 @@ class LocalVideoScanner(private val context: Context) {
             val filesUri = MediaStore.Files.getContentUri("external")
             val projection = arrayOf(
                 MediaStore.Files.FileColumns._ID,
-                MediaStore.Files.FileColumns.DATA,
                 MediaStore.Files.FileColumns.DISPLAY_NAME,
                 MediaStore.Files.FileColumns.RELATIVE_PATH,
                 MediaStore.Files.FileColumns.SIZE
             )
-            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.dd0' OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.DD0' OR ${MediaStore.Files.FileColumns.DATA} LIKE '%.dd0' OR ${MediaStore.Files.FileColumns.DATA} LIKE '%.DD0'"
+            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.dd0' OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.DD0'"
 
             val cursor = appContext.contentResolver.query(
                 filesUri,
@@ -500,32 +512,30 @@ class LocalVideoScanner(private val context: Context) {
             )
 
             cursor?.use { c ->
-                val dataCol = c.getColumnIndex(MediaStore.Files.FileColumns.DATA)
                 val nameCol = c.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
                 val relCol = c.getColumnIndex(MediaStore.Files.FileColumns.RELATIVE_PATH)
                 val sizeCol = c.getColumnIndex(MediaStore.Files.FileColumns.SIZE)
 
                 while (c.moveToNext()) {
                     val name = if (nameCol != -1) c.getString(nameCol) ?: "" else ""
-                    val dataPath = if (dataCol != -1) c.getString(dataCol) ?: "" else ""
                     val relPath = if (relCol != -1) c.getString(relCol) ?: "" else ""
                     val size = if (sizeCol != -1) c.getLong(sizeCol) else 0L
 
-                    var fullPath = dataPath
-                    if (fullPath.isBlank() && relPath.isNotBlank() && name.isNotBlank()) {
-                        fullPath = File(Environment.getExternalStorageDirectory(), "$relPath/$name").absolutePath
-                    }
-
-                    if (name.endsWith(".dd0", ignoreCase = true) || fullPath.endsWith(".dd0", ignoreCase = true)) {
+                    if (name.endsWith(".dd0", ignoreCase = true)) {
+                        val fullPath = if (relPath.isNotBlank()) {
+                            File(Environment.getExternalStorageDirectory(), "$relPath/$name").absolutePath
+                        } else {
+                            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), name).absolutePath
+                        }
                         val file = File(fullPath)
                         if (file.exists() && file.isFile && (size > 0L || file.length() > 0L)) {
-                            val canonical = try { file.canonicalPath } catch (_: Exception) { file.absolutePath }
+                            val canonical = try { file.canonicalPath } catch (_: Throwable) { file.absolutePath }
                             discoveredFiles[canonical] = file
                         }
                     }
                 }
             }
-        } catch (_: Exception) {}
+        } catch (_: Throwable) {}
 
         // 2. Fast targeted scan of public media directories (max depth 3, max 50 dirs, 500ms timeout)
         try {
