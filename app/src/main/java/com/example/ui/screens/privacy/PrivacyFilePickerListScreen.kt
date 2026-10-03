@@ -484,113 +484,6 @@ fun PrivacyFilePickerListScreen(
                 Button(
                     onClick = {
                         if (!isMoving) {
-                            if (!vaultManager.isVaultUnlocked()) {
-                                if (!securityManager.isPinConfigured()) {
-                                    Toast.makeText(context, "Tafadhali tengeneza PIN ya Privacy kwanza!", Toast.LENGTH_LONG).show()
-                                } else {
-                                    showPinUnlockDialog = true
-                                }
-                            } else {
-                                isMoving = true
-                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                    val result = vaultManager.moveDeviceFilesToVault(
-                                        files = selectedFiles.toList(),
-                                        mediaType = type.name,
-                                        onProgress = { current, total ->
-                                            coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                                                moveProgressText = "Moving file $current of $total..."
-                                            }
-                                        }
-                                    )
-                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                        isMoving = false
-                                        showConfirmMoveDialog = false
-
-                                        if (result.successCount > 0) {
-                                            Toast.makeText(
-                                                context,
-                                                "Successfully moved ${result.successCount} file(s) to Privacy!",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            onFilesMovedSuccess()
-                                        } else if (result.failedCount > 0) {
-                                            Toast.makeText(
-                                                context,
-                                                "Failed: ${result.errors.firstOrNull() ?: "Could not move files"}",
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = type.accentColor),
-                    enabled = !isMoving,
-                    modifier = Modifier.testTag("confirm_move_dialog_btn")
-                ) {
-                    Text(
-                        text = if (isMoving) "Moving..." else "Move to Privacy",
-                        color = Color(0xFF070B12),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            dismissButton = {
-                if (!isMoving) {
-                    TextButton(onClick = { showConfirmMoveDialog = false }) {
-                        Text("Cancel", color = F2WTextSecondary)
-                    }
-                }
-            }
-        )
-    }
-
-    // PIN prompt if vault is locked during move
-    if (showPinUnlockDialog) {
-        AlertDialog(
-            onDismissRequest = { showPinUnlockDialog = false },
-            containerColor = Color(0xFF1E1F22),
-            title = {
-                Text("Ingiza PIN ya Privacy", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            },
-            text = {
-                Column {
-                    Text(
-                        "Ingiza PIN yako ya tarakimu 4 ili kuthibitisha kuweka faili kwenye Privacy Vault.",
-                        color = F2WTextSecondary,
-                        fontSize = 13.5.sp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = inputPinForUnlock,
-                        onValueChange = { input ->
-                            if (input.length <= 4 && input.all { char -> char.isDigit() }) {
-                                inputPinForUnlock = input
-                                pinUnlockError = false
-                            }
-                        },
-                        label = { Text("4-Digit PIN") },
-                        isError = pinUnlockError,
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = type.accentColor,
-                            unfocusedBorderColor = F2WCardBorder
-                        )
-                    )
-                    if (pinUnlockError) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text("PIN siyo sahihi. Jaribu tena.", color = Color(0xFFEF4444), fontSize = 12.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (securityManager.verifyPin(inputPinForUnlock)) {
-                            showPinUnlockDialog = false
-                            inputPinForUnlock = ""
-                            pinUnlockError = false
                             isMoving = true
                             coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                 val result = vaultManager.moveDeviceFilesToVault(
@@ -622,18 +515,24 @@ fun PrivacyFilePickerListScreen(
                                     }
                                 }
                             }
-                        } else {
-                            pinUnlockError = true
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = type.accentColor)
+                    colors = ButtonDefaults.buttonColors(containerColor = type.accentColor),
+                    enabled = !isMoving,
+                    modifier = Modifier.testTag("confirm_move_dialog_btn")
                 ) {
-                    Text("Thibitisha PIN", color = Color(0xFF070B12), fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isMoving) "Moving..." else "Move to Privacy",
+                        color = Color(0xFF070B12),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showPinUnlockDialog = false }) {
-                    Text("Ghairi", color = F2WTextSecondary)
+                if (!isMoving) {
+                    TextButton(onClick = { showConfirmMoveDialog = false }) {
+                        Text("Cancel", color = F2WTextSecondary)
+                    }
                 }
             }
         )

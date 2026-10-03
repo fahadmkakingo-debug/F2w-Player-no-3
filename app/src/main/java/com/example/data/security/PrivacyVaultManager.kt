@@ -109,6 +109,7 @@ class PrivacyVaultManager private constructor(context: Context) {
     companion object {
         private const val KEY_SALT_HEX = "vault_salt_hex"
         private const val KEY_VERIFIER_HASH = "vault_verifier_hash"
+        private const val KEY_MASTER_SEED_HEX = "vault_master_seed_hex"
 
         @Volatile
         private var INSTANCE: PrivacyVaultManager? = null
@@ -270,6 +271,38 @@ class PrivacyVaultManager private constructor(context: Context) {
         return false
     }
 
+    @Synchronized
+    fun getOrCreateVaultEncryptionKey(): SecretKey {
+        activeVaultKey?.let { return it }
+
+        var seedHex = prefs.getString(KEY_MASTER_SEED_HEX, null)
+        if (seedHex.isNullOrBlank()) {
+            val header = getVaultHeaderJson()
+            if (header != null && header.has("master_seed_hex")) {
+                seedHex = header.getString("master_seed_hex")
+            }
+        }
+
+        if (seedHex.isNullOrBlank()) {
+            val randomBytes = ByteArray(32)
+            java.security.SecureRandom().nextBytes(randomBytes)
+            seedHex = VaultCryptoManager.bytesToHex(randomBytes)
+            prefs.edit().putString(KEY_MASTER_SEED_HEX, seedHex).apply()
+
+            try {
+                val header = getVaultHeaderJson() ?: JSONObject()
+                header.put("master_seed_hex", seedHex)
+                val root = getPersistentVaultRootDir()
+                File(root, "vault_header.json").writeText(header.toString())
+            } catch (_: Exception) {}
+        }
+
+        val keyBytes = VaultCryptoManager.hexToBytes(seedHex)
+        val key = javax.crypto.spec.SecretKeySpec(keyBytes, "AES")
+        activeVaultKey = key
+        return key
+    }
+
     fun getActiveVaultKey(): SecretKey? = activeVaultKey
 
     fun isVaultUnlocked(): Boolean = activeVaultKey != null
@@ -385,10 +418,7 @@ class PrivacyVaultManager private constructor(context: Context) {
         mediaType: String,
         onProgress: (Int, Int) -> Unit = { _, _ -> }
     ): MoveResult = withContext(Dispatchers.IO) {
-        val key = activeVaultKey
-        if (key == null) {
-            return@withContext MoveResult(0, files.size, listOf("Vault is locked. Please unlock first."))
-        }
+        val key = getOrCreateVaultEncryptionKey()
 
         val vaultDir = getVaultCategoryDir(mediaType)
         var successCount = 0
@@ -489,10 +519,7 @@ class PrivacyVaultManager private constructor(context: Context) {
         mediaType: String,
         onProgress: (Int, Int) -> Unit = { _, _ -> }
     ): MoveResult = withContext(Dispatchers.IO) {
-        val key = activeVaultKey
-        if (key == null) {
-            return@withContext MoveResult(0, uris.size, listOf("Vault is locked. Please unlock first."))
-        }
+        val key = getOrCreateVaultEncryptionKey()
 
         val vaultDir = getVaultCategoryDir(mediaType)
         var successCount = 0
@@ -577,7 +604,7 @@ class PrivacyVaultManager private constructor(context: Context) {
      * Decrypts encrypted vault item on-the-fly to a temporary cache file for ExoPlayer / Image loading.
      */
     fun getDecryptedTempFile(item: PrivacyVaultItem): File? {
-        val key = activeVaultKey ?: return null
+        val key = getOrCreateVaultEncryptionKey()
         val encryptedFile = File(item.vaultPath)
         if (!encryptedFile.exists()) return null
 

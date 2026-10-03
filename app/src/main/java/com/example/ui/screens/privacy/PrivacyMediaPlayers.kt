@@ -118,11 +118,18 @@ fun PrivacyVideoPlayerScreen(
 
     var videoFile by remember { mutableStateOf<File?>(null) }
     var isDecrypting by remember { mutableStateOf(true) }
+    var decryptionFailed by remember { mutableStateOf(false) }
 
     LaunchedEffect(item.vaultPath) {
         isDecrypting = true
+        decryptionFailed = false
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            videoFile = vaultManager.getDecryptedTempFile(item)
+            val file = vaultManager.getDecryptedTempFile(item)
+            if (file != null && file.exists() && file.length() > 0) {
+                videoFile = file
+            } else {
+                decryptionFailed = true
+            }
             isDecrypting = false
         }
     }
@@ -196,7 +203,39 @@ fun PrivacyVideoPlayerScreen(
             )
             .testTag("privacy_video_player_screen")
     ) {
-        if (isDecrypting || exoPlayer == null) {
+        if (decryptionFailed) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Lock,
+                    contentDescription = null,
+                    tint = Color(0xFFEF4444),
+                    modifier = Modifier.size(52.dp)
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = "Imeshindikana ku-decrypt video",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Faili la video linaweza kuwa limefutwa au kuharibika.",
+                    color = F2WTextSecondary,
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+                Button(
+                    onClick = onClose,
+                    colors = ButtonDefaults.buttonColors(containerColor = F2WCyanPrimary)
+                ) {
+                    Text("Rudi Nyuma", color = Color(0xFF070B12), fontWeight = FontWeight.Bold)
+                }
+            }
+        } else if (isDecrypting || exoPlayer == null) {
             Column(
                 modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally
