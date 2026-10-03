@@ -20,8 +20,12 @@ object VideoThumbnailHelper {
         if (isInitialized) return
         synchronized(this) {
             if (!isInitialized) {
-                val loader = buildImageLoader(context)
-                Coil.setImageLoader(loader)
+                try {
+                    val loader = buildImageLoader(context)
+                    Coil.setImageLoader(loader)
+                } catch (e: Throwable) {
+                    e.printStackTrace()
+                }
                 isInitialized = true
             }
         }
