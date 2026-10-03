@@ -38,12 +38,11 @@ class PrivacySecurityManager(context: Context) {
     }
 
     /**
-     * Checks if the user has already configured their Privacy PIN or if an existing persistent vault was detected on disk.
+     * Checks if the user has already configured their Privacy PIN.
      */
     fun isPinConfigured(): Boolean {
-        if (prefs.getString(KEY_PIN_HASH, null) != null) return true
-        val vaultManager = PrivacyVaultManager.getInstance(appContext)
-        return vaultManager.isExistingVaultDetected()
+        val pinHash = prefs.getString(KEY_PIN_HASH, null)
+        return !pinHash.isNullOrBlank()
     }
 
     /**
