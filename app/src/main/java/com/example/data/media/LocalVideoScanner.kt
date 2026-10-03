@@ -474,11 +474,12 @@ class LocalVideoScanner(private val context: Context) {
 
     /**
      * Discovers all .dd0 video files from device storage directories and MediaStore.Files.
+     * Uses targeted SQL selection and strict bounds to avoid ANR/freezing.
      */
     private fun scanStorageAndMediaStoreForDd0Files(): List<File> {
         val discoveredFiles = LinkedHashMap<String, File>()
 
-        // 1. Query Android MediaStore.Files for any file containing .dd0
+        // 1. Fast targeted Query on Android MediaStore.Files with SQL LIKE selection
         try {
             val filesUri = MediaStore.Files.getContentUri("external")
             val projection = arrayOf(
@@ -488,11 +489,12 @@ class LocalVideoScanner(private val context: Context) {
                 MediaStore.Files.FileColumns.RELATIVE_PATH,
                 MediaStore.Files.FileColumns.SIZE
             )
+            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.dd0' OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.DD0' OR ${MediaStore.Files.FileColumns.DATA} LIKE '%.dd0' OR ${MediaStore.Files.FileColumns.DATA} LIKE '%.DD0'"
 
             val cursor = appContext.contentResolver.query(
                 filesUri,
                 projection,
-                null,
+                selection,
                 null,
                 "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
             )
@@ -525,29 +527,14 @@ class LocalVideoScanner(private val context: Context) {
             }
         } catch (_: Exception) {}
 
-        // 2. Direct deep scan of device storage roots (depth up to 8, dirCount up to 1000, 6000ms timeout)
+        // 2. Fast targeted scan of public media directories (max depth 3, max 50 dirs, 500ms timeout)
         try {
             val searchRoots = LinkedHashSet<File>()
-
-            // Add Primary External Storage Root (/storage/emulated/0)
-            try {
-                Environment.getExternalStorageDirectory()?.let {
-                    if (it.exists() && it.isDirectory) searchRoots.add(it)
-                }
-            } catch (_: Exception) {}
-
-            try {
-                val emulated0 = File("/storage/emulated/0")
-                if (emulated0.exists() && emulated0.isDirectory) searchRoots.add(emulated0)
-            } catch (_: Exception) {}
-
             listOf(
                 Environment.DIRECTORY_MOVIES,
                 Environment.DIRECTORY_DOWNLOADS,
                 Environment.DIRECTORY_DCIM,
-                Environment.DIRECTORY_DOCUMENTS,
-                Environment.DIRECTORY_PICTURES,
-                Environment.DIRECTORY_MUSIC
+                Environment.DIRECTORY_DOCUMENTS
             ).forEach { dirType ->
                 try {
                     Environment.getExternalStoragePublicDirectory(dirType)?.let {
@@ -561,7 +548,7 @@ class LocalVideoScanner(private val context: Context) {
             val visitedDirs = HashSet<String>()
 
             fun walk(dir: File, depth: Int) {
-                if (depth > 8 || dirCount > 1000 || System.currentTimeMillis() - startTime > 6000) return
+                if (depth > 3 || dirCount > 50 || System.currentTimeMillis() - startTime > 500) return
                 if (!dir.exists() || !dir.isDirectory) return
 
                 val canonical = try { dir.canonicalPath } catch (_: Exception) { dir.absolutePath }
@@ -587,7 +574,7 @@ class LocalVideoScanner(private val context: Context) {
             }
 
             for (root in searchRoots) {
-                if (System.currentTimeMillis() - startTime > 6000) break
+                if (System.currentTimeMillis() - startTime > 500) break
                 walk(root, 0)
             }
         } catch (_: Exception) {}
