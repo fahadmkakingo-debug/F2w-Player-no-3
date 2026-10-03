@@ -100,6 +100,12 @@ class PrivacyVaultManager private constructor(context: Context) {
     @Volatile
     private var activeVaultKey: SecretKey? = null
 
+    @Volatile
+    private var cachedVaultItems: List<PrivacyVaultItem>? = null
+
+    @Volatile
+    private var cachedVaultPathsSet: Set<String>? = null
+
     companion object {
         private const val KEY_SALT_HEX = "vault_salt_hex"
         private const val KEY_VERIFIER_HASH = "vault_verifier_hash"
@@ -256,6 +262,8 @@ class PrivacyVaultManager private constructor(context: Context) {
             } else {
                 activeVaultKey = derivedKey
             }
+            cachedVaultItems = null
+            cachedVaultPathsSet = null
             _vaultUpdates.tryEmit(Unit)
             return true
         }
@@ -268,7 +276,20 @@ class PrivacyVaultManager private constructor(context: Context) {
 
     fun lockVault() {
         activeVaultKey = null
+        cachedVaultItems = null
+        cachedVaultPathsSet = null
         _vaultUpdates.tryEmit(Unit)
+    }
+
+    private fun buildVaultPathsSet(items: List<PrivacyVaultItem>): Set<String> {
+        val set = HashSet<String>()
+        for (item in items) {
+            if (item.originalPath.isNotBlank()) set.add(item.originalPath.lowercase().trim())
+            if (item.vaultPath.isNotBlank()) set.add(item.vaultPath.lowercase().trim())
+            if (item.fileName.isNotBlank()) set.add(item.fileName.lowercase().trim())
+            if (item.id.isNotBlank()) set.add(item.id.lowercase().trim())
+        }
+        return set
     }
 
     /**
@@ -330,20 +351,28 @@ class PrivacyVaultManager private constructor(context: Context) {
 
     /**
      * Checks if a file path, URI string, title, or ID belongs to an item currently stored in Privacy Vault.
+     * Uses fast O(1) in-memory set comparison.
      */
     fun isPathOrUriInVault(uriOrPath: String?, id: String? = null): Boolean {
         if (uriOrPath.isNullOrBlank()) return false
         val lower = uriOrPath.lowercase().trim()
         if (lower.contains("privacy_vault") || lower.contains("privatevault")) return true
 
-        val items = getVaultItems()
-        for (item in items) {
-            val origLower = item.originalPath.lowercase().trim()
-            val vaultLower = item.vaultPath.lowercase().trim()
+        val pathsSet = cachedVaultPathsSet ?: run {
+            val items = getVaultItems()
+            val set = buildVaultPathsSet(items)
+            cachedVaultPathsSet = set
+            set
+        }
 
-            if (origLower.isNotBlank() && (lower == origLower || lower.endsWith(origLower) || origLower.endsWith(lower))) return true
-            if (vaultLower.isNotBlank() && (lower == vaultLower || lower.endsWith(vaultLower) || vaultLower.endsWith(lower))) return true
-            if (id != null && item.id == id) return true
+        if (pathsSet.isEmpty()) return false
+        if (pathsSet.contains(lower)) return true
+        if (id != null && pathsSet.contains(id.lowercase().trim())) return true
+
+        for (itemPath in pathsSet) {
+            if (itemPath.length > 3 && (lower == itemPath || lower.endsWith(itemPath) || itemPath.endsWith(lower))) {
+                return true
+            }
         }
         return false
     }
@@ -576,6 +605,24 @@ class PrivacyVaultManager private constructor(context: Context) {
      * Retrieves all items currently stored in the Privacy Vault.
      */
     fun getVaultItems(mediaType: String? = null): List<PrivacyVaultItem> {
+        val cached = cachedVaultItems
+        val list = if (cached != null) {
+            cached
+        } else {
+            val loaded = loadVaultItemsFromStorage()
+            cachedVaultItems = loaded
+            cachedVaultPathsSet = buildVaultPathsSet(loaded)
+            loaded
+        }
+
+        return if (mediaType != null) {
+            list.filter { it.mediaType.equals(mediaType, ignoreCase = true) }
+        } else {
+            list
+        }
+    }
+
+    private fun loadVaultItemsFromStorage(): List<PrivacyVaultItem> {
         val key = activeVaultKey
         val itemsFile = File(getPersistentVaultRootDir(), "vault_items.enc")
 
@@ -627,12 +674,7 @@ class PrivacyVaultManager private constructor(context: Context) {
                 } catch (_: Exception) {}
             }
         }
-
-        return if (mediaType != null) {
-            list.filter { it.mediaType.equals(mediaType, ignoreCase = true) }
-        } else {
-            list
-        }
+        return list
     }
 
     /**
@@ -723,6 +765,9 @@ class PrivacyVaultManager private constructor(context: Context) {
     }
 
     private fun saveVaultItems(items: List<PrivacyVaultItem>) {
+        cachedVaultItems = items
+        cachedVaultPathsSet = buildVaultPathsSet(items)
+
         val key = activeVaultKey
         val itemsFile = File(getPersistentVaultRootDir(), "vault_items.enc")
 
