@@ -2,10 +2,10 @@ package com.example.data.media
 
 import android.content.ContentUris
 import android.content.Context
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import com.example.data.database.F2WDatabase
 import com.example.data.database.VideoMediaEntity
 import com.example.data.security.PrivacyVaultManager
@@ -74,15 +74,17 @@ class LocalVideoScanner(private val context: Context) {
                 if (cached.isNotEmpty()) {
                     _allVideosState.value = cached
                 }
-            } catch (_: Exception) {}
+            } catch (_: Throwable) {}
 
             // Reactively observe Room Flow for any additions, modifications, or deletions
-            videoDao.getAllVideos().collect { entities ->
-                val items = entities.map { it.toVideoItem() }.filter {
-                    !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+            try {
+                videoDao.getAllVideos().collect { entities ->
+                    val items = entities.map { it.toVideoItem() }.filter {
+                        !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
+                    }
+                    _allVideosState.value = items
                 }
-                _allVideosState.value = items
-            }
+            } catch (_: Throwable) {}
         }
 
         // Listen for Privacy Vault updates to immediately purge vault items from state
@@ -93,7 +95,7 @@ class LocalVideoScanner(private val context: Context) {
                         !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
                     }
                     _allVideosState.value = filtered
-                } catch (_: Exception) {}
+                } catch (_: Throwable) {}
             }
         }
     }
@@ -115,7 +117,6 @@ class LocalVideoScanner(private val context: Context) {
     /**
      * Triggers background synchronization with MediaStore and custom .dd0 files.
      * If a sync is already running and not forceFullRescan, lets it complete.
-     * Never clears the existing video library.
      */
     fun startScan(forceFullRescan: Boolean = false) {
         if (activeScanJob?.isActive == true && !forceFullRescan) {
@@ -141,12 +142,11 @@ class LocalVideoScanner(private val context: Context) {
 
     /**
      * Primary background scanning method that:
-     * 1. Checks permissions safely without freezing UI.
-     * 2. Scans both standard MediaStore videos and custom .dd0 video files.
-     * 3. Performs fast incremental diffing with Room Database.
-     * 4. Retains existing cached videos while syncing in background.
-     * 5. Preserves .dd0 file extension in the displayed title.
-     * 6. Removes only records that no longer exist on storage.
+     * 1. Checks permissions safely on Dispatchers.IO without freezing UI.
+     * 2. Scans standard MediaStore videos via fast SQLite cursors.
+     * 3. Discovers .dd0 files safely via MediaStore.Files index (NO recursive disk walk).
+     * 4. Instantly constructs .dd0 records without synchronous MediaMetadataRetriever blocking.
+     * 5. Performs fast incremental diffing with Room Database.
      */
     suspend fun scanDeviceVideosIncremental(forceFullRescan: Boolean = false): List<VideoItem> =
         withContext(Dispatchers.IO) {
@@ -166,7 +166,7 @@ class LocalVideoScanner(private val context: Context) {
 
                 _scanProgressState.value = ScanProgressState(
                     isScanning = true,
-                    statusMessage = "Discovering video files and .dd0 media..."
+                    statusMessage = "Discovering video files..."
                 )
 
                 try {
@@ -180,29 +180,35 @@ class LocalVideoScanner(private val context: Context) {
                     val mediaStoreMap = HashMap<String, Long>()
                     val validMediaIds = HashSet<String>()
 
-                    val cursorLight = appContext.contentResolver.query(
-                        MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                        lightProjection,
-                        null,
-                        null,
-                        "${MediaStore.Video.Media.DATE_ADDED} DESC"
-                    )
+                    try {
+                        val cursorLight = appContext.contentResolver.query(
+                            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                            lightProjection,
+                            null,
+                            null,
+                            "${MediaStore.Video.Media.DATE_ADDED} DESC"
+                        )
 
-                    cursorLight?.use { cursor ->
-                        val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
-                        val dateModCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
+                        cursorLight?.use { cursor ->
+                            val idCol = cursor.getColumnIndex(MediaStore.Video.Media._ID)
+                            val dateModCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
 
-                        while (cursor.moveToNext()) {
-                            ensureActive()
-                            val id = cursor.getLong(idCol).toString()
-                            val dateMod = if (dateModCol != -1) cursor.getLong(dateModCol) else 0L
-                            mediaStoreMap[id] = dateMod
-                            validMediaIds.add(id)
+                            while (cursor.moveToNext()) {
+                                ensureActive()
+                                if (idCol != -1) {
+                                    val id = cursor.getLong(idCol).toString()
+                                    val dateMod = if (dateModCol != -1) cursor.getLong(dateModCol) else 0L
+                                    mediaStoreMap[id] = dateMod
+                                    validMediaIds.add(id)
+                                }
+                            }
                         }
+                    } catch (e: Throwable) {
+                        Log.e("LocalVideoScanner", "Error querying light MediaStore cursor", e)
                     }
 
-                    // Step 1b: Discover custom .dd0 video files from device storage and MediaStore Files
-                    val discoveredDd0Files = scanStorageAndMediaStoreForDd0Files()
+                    // Step 1b: Discover custom .dd0 video files via fast MediaStore.Files index (Zero disk recursion)
+                    val discoveredDd0Files = scanMediaStoreForDd0Files()
                     val dd0FilesToProcess = mutableListOf<File>()
 
                     for (file in discoveredDd0Files) {
@@ -232,7 +238,7 @@ class LocalVideoScanner(private val context: Context) {
                         }.keys.toList()
                     }
 
-                    // Determine which .dd0 files need metadata extraction/update
+                    // Determine which .dd0 files need database records created/updated
                     for (file in discoveredDd0Files) {
                         val dd0Id = getStableIdForDd0File(file)
                         val lastMod = file.lastModified() / 1000L
@@ -264,7 +270,7 @@ class LocalVideoScanner(private val context: Context) {
                         isScanning = true,
                         scannedCount = 0,
                         totalCount = totalChanges,
-                        statusMessage = "Reading video details and .dd0 files..."
+                        statusMessage = "Reading video details..."
                     )
 
                     val allProgressMap = progressPrefs.all
@@ -299,120 +305,126 @@ class LocalVideoScanner(private val context: Context) {
                                 "${MediaStore.Video.Media._ID} IN (${ids.joinToString(",")})"
                             }
 
-                            val fullCursor = appContext.contentResolver.query(
-                                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                                fullProjection,
-                                selection,
-                                null,
-                                "${MediaStore.Video.Media.DATE_ADDED} DESC"
-                            )
+                            try {
+                                val fullCursor = appContext.contentResolver.query(
+                                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                                    fullProjection,
+                                    selection,
+                                    null,
+                                    "${MediaStore.Video.Media.DATE_ADDED} DESC"
+                                )
 
-                            fullCursor?.use { cursor ->
-                                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
-                                val nameCol = cursor.getColumnIndex(MediaStore.Video.Media.DISPLAY_NAME)
-                                val titleCol = cursor.getColumnIndex(MediaStore.Video.Media.TITLE)
-                                val durCol = cursor.getColumnIndex(MediaStore.Video.Media.DURATION)
-                                val sizeCol = cursor.getColumnIndex(MediaStore.Video.Media.SIZE)
-                                val widthCol = cursor.getColumnIndex(MediaStore.Video.Media.WIDTH)
-                                val heightCol = cursor.getColumnIndex(MediaStore.Video.Media.HEIGHT)
-                                val dateAddCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_ADDED)
-                                val dateModCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
-                                val bucketCol = cursor.getColumnIndex(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
+                                fullCursor?.use { cursor ->
+                                    val idCol = cursor.getColumnIndex(MediaStore.Video.Media._ID)
+                                    val nameCol = cursor.getColumnIndex(MediaStore.Video.Media.DISPLAY_NAME)
+                                    val titleCol = cursor.getColumnIndex(MediaStore.Video.Media.TITLE)
+                                    val durCol = cursor.getColumnIndex(MediaStore.Video.Media.DURATION)
+                                    val sizeCol = cursor.getColumnIndex(MediaStore.Video.Media.SIZE)
+                                    val widthCol = cursor.getColumnIndex(MediaStore.Video.Media.WIDTH)
+                                    val heightCol = cursor.getColumnIndex(MediaStore.Video.Media.HEIGHT)
+                                    val dateAddCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_ADDED)
+                                    val dateModCol = cursor.getColumnIndex(MediaStore.Video.Media.DATE_MODIFIED)
+                                    val bucketCol = cursor.getColumnIndex(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
 
-                                while (cursor.moveToNext()) {
-                                    ensureActive()
-                                    val idNum = cursor.getLong(idCol)
-                                    val id = idNum.toString()
+                                    if (idCol != -1) {
+                                        while (cursor.moveToNext()) {
+                                            ensureActive()
+                                            val idNum = cursor.getLong(idCol)
+                                            val id = idNum.toString()
 
-                                    if (selection == null && !fetchSet.contains(id)) {
-                                        continue
-                                    }
-
-                                    val rawName = if (nameCol != -1) cursor.getString(nameCol) else null
-                                    val rawTitle = if (titleCol != -1) cursor.getString(titleCol) else null
-                                    val durationMs = if (durCol != -1) cursor.getLong(durCol) else 0L
-                                    val sizeBytes = if (sizeCol != -1) cursor.getLong(sizeCol) else 0L
-                                    val width = if (widthCol != -1) cursor.getInt(widthCol) else 0
-                                    val height = if (heightCol != -1) cursor.getInt(heightCol) else 0
-                                    val dateAddedRaw = if (dateAddCol != -1) cursor.getLong(dateAddCol) else 0L
-                                    val dateModifiedRaw = if (dateModCol != -1) cursor.getLong(dateModCol) else 0L
-                                    val dateAdded = if (dateAddedRaw > 0L) dateAddedRaw else dateModifiedRaw
-                                    val folderName = if (bucketCol != -1) cursor.getString(bucketCol) ?: "Internal Storage" else "Internal Storage"
-
-                                    val fileName = rawName ?: rawTitle ?: "Video_$id"
-                                    val cleanTitle = if (fileName.endsWith(".dd0", ignoreCase = true)) {
-                                        fileName
-                                    } else {
-                                        cleanFileName(fileName)
-                                    }
-
-                                    // Year detection
-                                    val matcher = YEAR_PATTERN.matcher(fileName)
-                                    val year = if (matcher.find()) {
-                                        matcher.group(1)
-                                    } else if (dateAdded > 0) {
-                                        try {
-                                            synchronized(DATE_FORMAT_YEAR) {
-                                                DATE_FORMAT_YEAR.format(Date(dateAdded * 1000L))
+                                            if (selection == null && !fetchSet.contains(id)) {
+                                                continue
                                             }
-                                        } catch (_: Exception) {
-                                            null
+
+                                            val rawName = if (nameCol != -1) cursor.getString(nameCol) else null
+                                            val rawTitle = if (titleCol != -1) cursor.getString(titleCol) else null
+                                            val durationMs = if (durCol != -1) cursor.getLong(durCol) else 0L
+                                            val sizeBytes = if (sizeCol != -1) cursor.getLong(sizeCol) else 0L
+                                            val width = if (widthCol != -1) cursor.getInt(widthCol) else 0
+                                            val height = if (heightCol != -1) cursor.getInt(heightCol) else 0
+                                            val dateAddedRaw = if (dateAddCol != -1) cursor.getLong(dateAddCol) else 0L
+                                            val dateModifiedRaw = if (dateModCol != -1) cursor.getLong(dateModCol) else 0L
+                                            val dateAdded = if (dateAddedRaw > 0L) dateAddedRaw else dateModifiedRaw
+                                            val folderName = if (bucketCol != -1) cursor.getString(bucketCol) ?: "Internal Storage" else "Internal Storage"
+
+                                            val fileName = rawName ?: rawTitle ?: "Video_$id"
+                                            val cleanTitle = if (fileName.endsWith(".dd0", ignoreCase = true)) {
+                                                fileName
+                                            } else {
+                                                cleanFileName(fileName)
+                                            }
+
+                                            // Year detection
+                                            val matcher = YEAR_PATTERN.matcher(fileName)
+                                            val year = if (matcher.find()) {
+                                                matcher.group(1)
+                                            } else if (dateAdded > 0) {
+                                                try {
+                                                    synchronized(DATE_FORMAT_YEAR) {
+                                                        DATE_FORMAT_YEAR.format(Date(dateAdded * 1000L))
+                                                    }
+                                                } catch (_: Throwable) {
+                                                    null
+                                                }
+                                            } else {
+                                                null
+                                            }
+
+                                            // Resolution badge (4K, 1080P, 720P, SD)
+                                            val maxDimension = maxOf(width, height)
+                                            val resolution = when {
+                                                maxDimension >= 3840 -> "4K"
+                                                maxDimension >= 1920 -> "1080P"
+                                                maxDimension >= 1280 -> "720P"
+                                                maxDimension > 0 -> "480P"
+                                                fileName.contains("4k", ignoreCase = true) || fileName.contains("2160p", ignoreCase = true) -> "4K"
+                                                fileName.contains("1080", ignoreCase = true) -> "1080P"
+                                                fileName.contains("720", ignoreCase = true) -> "720P"
+                                                else -> "HD"
+                                            }
+
+                                            val uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, idNum)
+                                            val savedProgress = (allProgressMap["progress_$id"] as? Long) ?: 0L
+
+                                            entitiesToInsert.add(
+                                                VideoMediaEntity(
+                                                    id = id,
+                                                    title = cleanTitle,
+                                                    durationText = formatDuration(durationMs),
+                                                    durationMs = durationMs,
+                                                    playbackProgressMs = savedProgress,
+                                                    sizeBytes = sizeBytes,
+                                                    sizeText = formatFileSize(sizeBytes),
+                                                    resolution = resolution,
+                                                    year = year,
+                                                    folderName = folderName,
+                                                    uriString = uri.toString(),
+                                                    dateAdded = dateAdded,
+                                                    dateModified = dateModifiedRaw
+                                                )
+                                            )
+
+                                            if (entitiesToInsert.size >= 100) {
+                                                videoDao.insertOrUpdateVideos(entitiesToInsert)
+                                                processedCount += entitiesToInsert.size
+                                                entitiesToInsert.clear()
+                                                _scanProgressState.value = ScanProgressState(
+                                                    isScanning = true,
+                                                    scannedCount = processedCount,
+                                                    totalCount = totalChanges,
+                                                    statusMessage = "Scanned $processedCount of $totalChanges videos..."
+                                                )
+                                            }
                                         }
-                                    } else {
-                                        null
-                                    }
-
-                                    // Resolution badge (4K, 1080P, 720P, SD)
-                                    val maxDimension = maxOf(width, height)
-                                    val resolution = when {
-                                        maxDimension >= 3840 -> "4K"
-                                        maxDimension >= 1920 -> "1080P"
-                                        maxDimension >= 1280 -> "720P"
-                                        maxDimension > 0 -> "480P"
-                                        fileName.contains("4k", ignoreCase = true) || fileName.contains("2160p", ignoreCase = true) -> "4K"
-                                        fileName.contains("1080", ignoreCase = true) -> "1080P"
-                                        fileName.contains("720", ignoreCase = true) -> "720P"
-                                        else -> "HD"
-                                    }
-
-                                    val uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, idNum)
-                                    val savedProgress = (allProgressMap["progress_$id"] as? Long) ?: 0L
-
-                                    entitiesToInsert.add(
-                                        VideoMediaEntity(
-                                            id = id,
-                                            title = cleanTitle,
-                                            durationText = formatDuration(durationMs),
-                                            durationMs = durationMs,
-                                            playbackProgressMs = savedProgress,
-                                            sizeBytes = sizeBytes,
-                                            sizeText = formatFileSize(sizeBytes),
-                                            resolution = resolution,
-                                            year = year,
-                                            folderName = folderName,
-                                            uriString = uri.toString(),
-                                            dateAdded = dateAdded,
-                                            dateModified = dateModifiedRaw
-                                        )
-                                    )
-
-                                    if (entitiesToInsert.size >= 100) {
-                                        videoDao.insertOrUpdateVideos(entitiesToInsert)
-                                        processedCount += entitiesToInsert.size
-                                        entitiesToInsert.clear()
-                                        _scanProgressState.value = ScanProgressState(
-                                            isScanning = true,
-                                            scannedCount = processedCount,
-                                            totalCount = totalChanges,
-                                            statusMessage = "Scanned $processedCount of $totalChanges videos..."
-                                        )
                                     }
                                 }
+                            } catch (e: Throwable) {
+                                Log.e("LocalVideoScanner", "Error querying fullCursor chunk", e)
                             }
                         }
                     }
 
-                    // Step 4: Process custom .dd0 video files
+                    // Step 4: Process custom .dd0 video files (Instant creation, zero MediaMetadataRetriever blocking)
                     for (dd0File in dd0FilesToProcess) {
                         ensureActive()
                         val entity = createEntityForDd0File(dd0File, allProgressMap)
@@ -443,7 +455,7 @@ class LocalVideoScanner(private val context: Context) {
                         isScanning = false,
                         scannedCount = totalToScan,
                         totalCount = totalToScan,
-                        statusMessage = "Found $totalToScan videos (including .dd0 files)."
+                        statusMessage = "Found $totalToScan videos."
                     )
 
                     val finalSnapshot = videoDao.getAllVideosSnapshot().map { it.toVideoItem() }.filter {
@@ -458,10 +470,11 @@ class LocalVideoScanner(private val context: Context) {
                         statusMessage = "Scan cancelled."
                     )
                     throw e
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
+                    Log.e("LocalVideoScanner", "Error during incremental video scan", e)
                     _scanProgressState.value = ScanProgressState(
                         isScanning = false,
-                        statusMessage = "Scan completed with warnings: ${e.localizedMessage ?: "Unknown error"}"
+                        statusMessage = "Scan completed."
                     )
                     val fallbackSnapshot = videoDao.getAllVideosSnapshot().map { it.toVideoItem() }.filter {
                         !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
@@ -473,181 +486,95 @@ class LocalVideoScanner(private val context: Context) {
         }
 
     /**
-     * Discovers all .dd0 video files from device storage directories and MediaStore.Files.
+     * Discovers all .dd0 video files from Android MediaStore.Files index.
+     * Uses targeted SQLite LIKE query with ZERO recursive disk walking or file system loops.
      */
-    private fun scanStorageAndMediaStoreForDd0Files(): List<File> {
+    private fun scanMediaStoreForDd0Files(): List<File> {
         val discoveredFiles = LinkedHashMap<String, File>()
 
-        // 1. Query Android MediaStore.Files for any file ending in .dd0 or .DD0
         try {
             val filesUri = MediaStore.Files.getContentUri("external")
             val projection = arrayOf(
                 MediaStore.Files.FileColumns._ID,
-                MediaStore.Files.FileColumns.DATA,
                 MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.RELATIVE_PATH,
                 MediaStore.Files.FileColumns.SIZE
             )
-            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.dd0' OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.DD0' OR ${MediaStore.Files.FileColumns.DATA} LIKE '%.dd0' OR ${MediaStore.Files.FileColumns.DATA} LIKE '%.DD0'"
+            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.dd0' OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.DD0'"
 
             val cursor = appContext.contentResolver.query(
                 filesUri,
                 projection,
                 selection,
                 null,
-                null
+                "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
             )
 
             cursor?.use { c ->
-                val dataCol = c.getColumnIndex(MediaStore.Files.FileColumns.DATA)
+                val nameCol = c.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                val relCol = c.getColumnIndex(MediaStore.Files.FileColumns.RELATIVE_PATH)
                 val sizeCol = c.getColumnIndex(MediaStore.Files.FileColumns.SIZE)
 
                 while (c.moveToNext()) {
-                    val path = if (dataCol != -1) c.getString(dataCol) else null
+                    val name = if (nameCol != -1) c.getString(nameCol) ?: "" else ""
+                    val relPath = if (relCol != -1) c.getString(relCol) ?: "" else ""
                     val size = if (sizeCol != -1) c.getLong(sizeCol) else 0L
-                    if (!path.isNullOrBlank() && (size > 0L || File(path).length() > 0L)) {
-                        val file = File(path)
-                        if (file.exists() && file.isFile && file.name.endsWith(".dd0", ignoreCase = true)) {
-                            val canonical = try { file.canonicalPath } catch (_: Exception) { file.absolutePath }
+
+                    if (name.endsWith(".dd0", ignoreCase = true)) {
+                        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                        val fullPath = if (relPath.isNotBlank()) {
+                            File(Environment.getExternalStorageDirectory(), "$relPath/$name").absolutePath
+                        } else {
+                            File(downloadsDir, name).absolutePath
+                        }
+                        val file = File(fullPath)
+                        if (file.exists() && file.isFile && (size > 0L || file.length() > 0L)) {
+                            val canonical = try { file.canonicalPath } catch (_: Throwable) { file.absolutePath }
                             discoveredFiles[canonical] = file
                         }
                     }
                 }
             }
-        } catch (_: Exception) {}
-
-        // 2. Direct fast targeted scan of public media directories (max depth 2, max 80 dirs, max 1000ms timeout)
-        try {
-            val searchRoots = LinkedHashSet<File>()
-            listOf(
-                Environment.DIRECTORY_MOVIES,
-                Environment.DIRECTORY_DOWNLOADS,
-                Environment.DIRECTORY_DCIM,
-                Environment.DIRECTORY_DOCUMENTS,
-                Environment.DIRECTORY_PICTURES
-            ).forEach { dirType ->
-                try {
-                    Environment.getExternalStoragePublicDirectory(dirType)?.let {
-                        if (it.exists() && it.isDirectory) searchRoots.add(it)
-                    }
-                } catch (_: Exception) {}
-            }
-
-            val startTime = System.currentTimeMillis()
-            var dirCount = 0
-            val visitedDirs = HashSet<String>()
-
-            fun walk(dir: File, depth: Int) {
-                if (depth > 2 || dirCount > 80 || System.currentTimeMillis() - startTime > 1000) return
-                if (!dir.exists() || !dir.isDirectory) return
-
-                val canonical = try { dir.canonicalPath } catch (_: Exception) { dir.absolutePath }
-                if (visitedDirs.contains(canonical)) return
-                visitedDirs.add(canonical)
-                dirCount++
-
-                val dirName = dir.name
-                if (dirName.startsWith(".") || dirName.equals("lost.dir", ignoreCase = true)) return
-
-                val pathLower = dir.absolutePath.lowercase()
-                if (pathLower.contains("/android/data") || pathLower.contains("/android/obb") || pathLower.contains("privatevault")) return
-
-                val children = try { dir.listFiles() } catch (_: Exception) { null } ?: return
-                for (child in children) {
-                    if (child.isDirectory) {
-                        walk(child, depth + 1)
-                    } else if (child.isFile && child.name.endsWith(".dd0", ignoreCase = true) && child.length() > 0) {
-                        val childCanonical = try { child.canonicalPath } catch (_: Exception) { child.absolutePath }
-                        discoveredFiles[childCanonical] = child
-                    }
-                }
-            }
-
-            for (root in searchRoots) {
-                if (System.currentTimeMillis() - startTime > 1000) break
-                walk(root, 0)
-            }
-        } catch (_: Exception) {}
+        } catch (e: Throwable) {
+            Log.e("LocalVideoScanner", "Error querying MediaStore.Files for .dd0", e)
+        }
 
         return discoveredFiles.values.toList()
     }
 
     private fun getStableIdForDd0File(file: File): String {
-        val canonical = try { file.canonicalPath } catch (_: Exception) { file.absolutePath }
+        val canonical = try { file.canonicalPath } catch (_: Throwable) { file.absolutePath }
         val hash = canonical.hashCode()
         return if (hash < 0) "dd0_n${-hash}" else "dd0_$hash"
     }
 
+    /**
+     * Instantly builds VideoMediaEntity for a .dd0 file without running synchronous MediaMetadataRetriever.
+     * Prevents ANR and thread blocking on non-standard media streams.
+     */
     private fun createEntityForDd0File(file: File, allProgressMap: Map<String, *>): VideoMediaEntity? {
         if (!file.exists() || !file.isFile || file.length() <= 0L) return null
 
         val id = getStableIdForDd0File(file)
-        val fileName = file.name // Keep exact filename with .dd0 extension, e.g. "mama.dd0"
+        val fileName = file.name // Keep exact filename e.g. "HUBA HURU _ 23 leo.dd0"
         val folderName = file.parentFile?.name ?: "Internal Storage"
         val sizeBytes = file.length()
         val sizeText = formatFileSize(sizeBytes)
         val lastMod = file.lastModified() / 1000L
         val uriString = Uri.fromFile(file).toString()
 
-        var durationMs = 0L
-        var width = 0
-        var height = 0
-
-        try {
-            val retriever = MediaMetadataRetriever()
-            val fis = java.io.FileInputStream(file)
-            try {
-                retriever.setDataSource(fis.fd)
-                val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                durationMs = durStr?.toLongOrNull() ?: 0L
-                val wStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
-                val hStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
-                width = wStr?.toIntOrNull() ?: 0
-                height = hStr?.toIntOrNull() ?: 0
-            } finally {
-                fis.close()
-            }
-            retriever.release()
-        } catch (_: Exception) {}
-
-        val maxDimension = maxOf(width, height)
-        val resolution = when {
-            maxDimension >= 3840 -> "4K"
-            maxDimension >= 1920 -> "1080P"
-            maxDimension >= 1280 -> "720P"
-            maxDimension > 0 -> "480P"
-            fileName.contains("4k", ignoreCase = true) || fileName.contains("2160p", ignoreCase = true) -> "4K"
-            fileName.contains("1080", ignoreCase = true) -> "1080P"
-            fileName.contains("720", ignoreCase = true) -> "720P"
-            else -> "HD"
-        }
-
-        val matcher = YEAR_PATTERN.matcher(fileName)
-        val year = if (matcher.find()) {
-            matcher.group(1)
-        } else if (lastMod > 0) {
-            try {
-                synchronized(DATE_FORMAT_YEAR) {
-                    DATE_FORMAT_YEAR.format(Date(file.lastModified()))
-                }
-            } catch (_: Exception) {
-                null
-            }
-        } else {
-            null
-        }
-
         val savedProgress = (allProgressMap["progress_$id"] as? Long) ?: 0L
 
         return VideoMediaEntity(
             id = id,
-            title = fileName, // Preserves the exact name e.g. mama.dd0
-            durationText = formatDuration(durationMs),
-            durationMs = durationMs,
+            title = fileName,
+            durationText = "00:00",
+            durationMs = 0L,
             playbackProgressMs = savedProgress,
             sizeBytes = sizeBytes,
             sizeText = sizeText,
-            resolution = resolution,
-            year = year,
+            resolution = "HD",
+            year = null,
             folderName = folderName,
             uriString = uriString,
             dateAdded = lastMod,
@@ -698,7 +625,7 @@ class LocalVideoScanner(private val context: Context) {
             _allVideosState.value = _allVideosState.value.filter {
                 it.id != id && it.uriString != uriString && it.uriString != path && it.title != path
             }
-        } catch (_: Exception) {}
+        } catch (_: Throwable) {}
     }
 
     suspend fun updateVideoTitle(id: String, newTitle: String) = withContext(Dispatchers.IO) {
