@@ -93,7 +93,6 @@ class LocalVideoScanner(private val context: Context) {
                         !vaultManager.isPathOrUriInVault(it.uriString, it.id) && !vaultManager.isPathOrUriInVault(it.title)
                     }
                     _allVideosState.value = filtered
-                    startScan(forceFullRescan = true)
                 } catch (_: Exception) {}
             }
         }
@@ -691,6 +690,15 @@ class LocalVideoScanner(private val context: Context) {
 
     suspend fun deleteVideoFromDb(id: String) = withContext(Dispatchers.IO) {
         videoDao.deleteVideoById(id)
+    }
+
+    suspend fun removeVideoFromLibrary(id: String, uriString: String, path: String) = withContext(Dispatchers.IO) {
+        try {
+            videoDao.deleteVideoById(id)
+            _allVideosState.value = _allVideosState.value.filter {
+                it.id != id && it.uriString != uriString && it.uriString != path && it.title != path
+            }
+        } catch (_: Exception) {}
     }
 
     suspend fun updateVideoTitle(id: String, newTitle: String) = withContext(Dispatchers.IO) {

@@ -102,7 +102,7 @@ private fun PageCurlUnveilBox(
             curlAnim.snapTo(0f)
             curlAnim.animateTo(
                 targetValue = 1f,
-                animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing)
+                animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
             )
             isAnimRunning = false
         } else {

@@ -52,11 +52,21 @@ import com.example.ui.theme.F2WTextPrimary
 import com.example.ui.theme.F2WTextSecondary
 import com.example.ui.theme.F2WTextTertiary
 
+import android.widget.Toast
+import androidx.compose.material.icons.filled.Warning
+import com.example.data.security.PrivacyVaultManager
+import com.example.ui.components.UninstallPrivacyWarningDialog
+
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onNavigateToPrivacy: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val vaultManager = remember { PrivacyVaultManager.getInstance(context) }
+    var showUninstallWarningDialog by remember { mutableStateOf(false) }
+    var privacyItemCount by remember { mutableStateOf(0) }
     var selectedSection by remember { mutableStateOf<String?>(null) }
 
     if (selectedSection == "Video") {
@@ -179,7 +189,36 @@ fun SettingsScreen(
                 testTag = "settings_option_about_app",
                 onClick = { selectedSection = "About App" }
             )
+
+            // 5. Uninstall Warning & Data Protection
+            SettingsOptionCard(
+                title = "Uninstall Warning",
+                subtitle = "Check for private items before uninstalling app",
+                icon = Icons.Filled.Warning,
+                testTag = "settings_option_uninstall_warning",
+                onClick = {
+                    val items = vaultManager.getVaultItems()
+                    privacyItemCount = items.size
+                    if (privacyItemCount > 0) {
+                        showUninstallWarningDialog = true
+                    } else {
+                        Toast.makeText(context, "No private items found. You can safely uninstall the app.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
         }
+    }
+
+    if (showUninstallWarningDialog) {
+        UninstallPrivacyWarningDialog(
+            itemCount = privacyItemCount,
+            onGoToPrivacy = {
+                showUninstallWarningDialog = false
+                onBack()
+                onNavigateToPrivacy()
+            },
+            onDismiss = { showUninstallWarningDialog = false }
+        )
     }
 }
 

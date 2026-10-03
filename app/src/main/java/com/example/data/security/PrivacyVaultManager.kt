@@ -61,6 +61,8 @@ data class PrivacyVaultItem(
     val id: String,
     val fileName: String,
     val originalPath: String,
+    val originalUriString: String = "",
+    val originalMediaId: String = "",
     val vaultPath: String,
     val mediaType: String, // "VIDEO", "AUDIO", "IMAGE"
     val sizeBytes: Long,
@@ -314,14 +316,47 @@ class PrivacyVaultManager private constructor(context: Context) {
         _vaultUpdates.tryEmit(Unit)
     }
 
+    @Volatile
+    private var cachedVaultIdsSet: Set<String>? = null
+
     private fun buildVaultPathsSet(items: List<PrivacyVaultItem>): Set<String> {
         val set = HashSet<String>()
+        val ids = HashSet<String>()
         for (item in items) {
-            if (item.originalPath.isNotBlank()) set.add(item.originalPath.lowercase().trim())
-            if (item.vaultPath.isNotBlank()) set.add(item.vaultPath.lowercase().trim())
-            if (item.fileName.isNotBlank()) set.add(item.fileName.lowercase().trim())
-            if (item.id.isNotBlank()) set.add(item.id.lowercase().trim())
+            if (item.originalPath.isNotBlank()) {
+                val orig = item.originalPath.lowercase().trim()
+                set.add(orig)
+                val fileNameFromPath = orig.substringAfterLast('/')
+                if (fileNameFromPath.isNotBlank()) set.add(fileNameFromPath)
+            }
+            if (item.originalUriString.isNotBlank()) {
+                val uriStr = item.originalUriString.lowercase().trim()
+                set.add(uriStr)
+                val uriId = uriStr.substringAfterLast('/')
+                if (uriId.isNotBlank()) ids.add(uriId)
+            }
+            if (item.originalMediaId.isNotBlank()) {
+                val mId = item.originalMediaId.trim().lowercase()
+                ids.add(mId)
+                set.add(mId)
+            }
+            if (item.vaultPath.isNotBlank()) {
+                val vPath = item.vaultPath.lowercase().trim()
+                set.add(vPath)
+                val vFileName = vPath.substringAfterLast('/')
+                if (vFileName.isNotBlank()) set.add(vFileName)
+            }
+            if (item.fileName.isNotBlank()) {
+                val fName = item.fileName.lowercase().trim()
+                set.add(fName)
+                val fNameNoExt = fName.substringBeforeLast('.')
+                if (fNameNoExt.isNotBlank() && fNameNoExt.length > 2) set.add(fNameNoExt)
+            }
+            if (item.id.isNotBlank()) {
+                set.add(item.id.lowercase().trim())
+            }
         }
+        cachedVaultIdsSet = ids
         return set
     }
 
@@ -400,7 +435,10 @@ class PrivacyVaultManager private constructor(context: Context) {
 
         if (pathsSet.isEmpty()) return false
         if (pathsSet.contains(lower)) return true
-        if (id != null && pathsSet.contains(id.lowercase().trim())) return true
+        if (id != null && (pathsSet.contains(id.lowercase().trim()) || cachedVaultIdsSet?.contains(id.trim().lowercase()) == true)) return true
+
+        val lastSegment = lower.substringAfterLast('/').substringAfterLast('%')
+        if (lastSegment.isNotBlank() && pathsSet.contains(lastSegment)) return true
 
         for (itemPath in pathsSet) {
             if (itemPath.length > 3 && (lower == itemPath || lower.endsWith(itemPath) || itemPath.endsWith(lower))) {
@@ -411,15 +449,13 @@ class PrivacyVaultManager private constructor(context: Context) {
     }
 
     /**
-     * MOVES device files into Privacy Vault using AES-256-GCM encryption.
+     * MOVES device files into Privacy Vault (lightweight, unencrypted, fast).
      */
     suspend fun moveDeviceFilesToVault(
         files: List<DeviceMediaFile>,
         mediaType: String,
         onProgress: (Int, Int) -> Unit = { _, _ -> }
     ): MoveResult = withContext(Dispatchers.IO) {
-        val key = getOrCreateVaultEncryptionKey()
-
         val vaultDir = getVaultCategoryDir(mediaType)
         var successCount = 0
         var failedCount = 0
@@ -430,7 +466,7 @@ class PrivacyVaultManager private constructor(context: Context) {
             onProgress(index + 1, files.size)
             try {
                 val originalFileName = file.title.ifBlank { "file_${System.currentTimeMillis()}" }
-                val targetEncryptedFile = File(vaultDir, "media_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}.f2w")
+                val targetFile = File(vaultDir, "pv_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}_${originalFileName}")
 
                 val inputStream: InputStream? = appContext.contentResolver.openInputStream(file.uri)
                     ?: if (file.path.isNotBlank()) File(file.path).inputStream() else null
@@ -441,14 +477,16 @@ class PrivacyVaultManager private constructor(context: Context) {
                     return@forEachIndexed
                 }
 
-                val encryptedSize = inputStream.use { input ->
-                    VaultCryptoManager.encryptStreamToFile(input, targetEncryptedFile, key)
+                val writtenBytes = inputStream.use { input ->
+                    targetFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
                 }
 
-                if (!targetEncryptedFile.exists() || encryptedSize <= 12) {
-                    targetEncryptedFile.delete()
+                if (!targetFile.exists() || writtenBytes <= 0) {
+                    targetFile.delete()
                     failedCount++
-                    errors.add("Encryption failed for ${file.title}")
+                    errors.add("Failed to move ${file.title}")
                     return@forEachIndexed
                 }
 
@@ -489,14 +527,22 @@ class PrivacyVaultManager private constructor(context: Context) {
                     id = "vault_${System.currentTimeMillis()}_${file.id}",
                     fileName = originalFileName,
                     originalPath = file.path.ifBlank { file.uri.toString() },
-                    vaultPath = targetEncryptedFile.absolutePath,
+                    originalUriString = file.uri.toString(),
+                    originalMediaId = file.id,
+                    vaultPath = targetFile.absolutePath,
                     mediaType = mediaType.uppercase(),
-                    sizeBytes = targetEncryptedFile.length(),
+                    sizeBytes = targetFile.length(),
                     durationMs = file.durationMs,
                     dateAdded = System.currentTimeMillis()
                 )
                 newVaultItems.add(vaultItem)
                 successCount++
+
+                // Immediately purge from Room DB and scanner cache
+                if (mediaType.equals("VIDEO", ignoreCase = true)) {
+                    com.example.data.media.LocalVideoScanner.getInstance(appContext)
+                        .removeVideoFromLibrary(file.id, file.uri.toString(), file.path)
+                }
             } catch (e: Exception) {
                 failedCount++
                 errors.add("Error moving ${file.title}: ${e.message}")
@@ -512,15 +558,13 @@ class PrivacyVaultManager private constructor(context: Context) {
     }
 
     /**
-     * MOVES files selected from Local Storage file picker into Privacy Vault using AES-256-GCM.
+     * MOVES files selected from Local Storage file picker into Privacy Vault (lightweight).
      */
     suspend fun moveLocalUrisToVault(
         uris: List<Uri>,
         mediaType: String,
         onProgress: (Int, Int) -> Unit = { _, _ -> }
     ): MoveResult = withContext(Dispatchers.IO) {
-        val key = getOrCreateVaultEncryptionKey()
-
         val vaultDir = getVaultCategoryDir(mediaType)
         var successCount = 0
         var failedCount = 0
@@ -540,7 +584,7 @@ class PrivacyVaultManager private constructor(context: Context) {
                     }
                 } catch (_: Exception) {}
 
-                val targetEncryptedFile = File(vaultDir, "media_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}.f2w")
+                val targetFile = File(vaultDir, "pv_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}_${displayName}")
                 val inputStream = appContext.contentResolver.openInputStream(uri)
                 if (inputStream == null) {
                     failedCount++
@@ -548,14 +592,16 @@ class PrivacyVaultManager private constructor(context: Context) {
                     return@forEachIndexed
                 }
 
-                val encryptedSize = inputStream.use { input ->
-                    VaultCryptoManager.encryptStreamToFile(input, targetEncryptedFile, key)
+                val writtenBytes = inputStream.use { input ->
+                    targetFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
                 }
 
-                if (!targetEncryptedFile.exists() || encryptedSize <= 12) {
-                    targetEncryptedFile.delete()
+                if (!targetFile.exists() || writtenBytes <= 0) {
+                    targetFile.delete()
                     failedCount++
-                    errors.add("Encryption failed for $displayName")
+                    errors.add("Move failed for $displayName")
                     return@forEachIndexed
                 }
 
@@ -578,9 +624,9 @@ class PrivacyVaultManager private constructor(context: Context) {
                     id = "vault_${System.currentTimeMillis()}_$index",
                     fileName = displayName,
                     originalPath = uri.toString(),
-                    vaultPath = targetEncryptedFile.absolutePath,
+                    vaultPath = targetFile.absolutePath,
                     mediaType = mediaType.uppercase(),
-                    sizeBytes = targetEncryptedFile.length(),
+                    sizeBytes = targetFile.length(),
                     durationMs = 0L,
                     dateAdded = System.currentTimeMillis()
                 )
@@ -601,43 +647,11 @@ class PrivacyVaultManager private constructor(context: Context) {
     }
 
     /**
-     * Decrypts encrypted vault item on-the-fly to a temporary cache file for ExoPlayer / Image loading.
+     * Retrieves lightweight private file for player/viewing instantly.
      */
     fun getDecryptedTempFile(item: PrivacyVaultItem): File? {
-        val key = getOrCreateVaultEncryptionKey()
-        val encryptedFile = File(item.vaultPath)
-        if (!encryptedFile.exists()) return null
-
-        val dotIdx = item.fileName.lastIndexOf('.')
-        val ext = if (dotIdx != -1) item.fileName.substring(dotIdx) else when (item.mediaType.uppercase()) {
-            "VIDEO" -> ".mp4"
-            "AUDIO" -> ".mp3"
-            else -> ".jpg"
-        }
-
-        val tempDir = File(appContext.cacheDir, "vault_temp_play")
-        if (!tempDir.exists()) tempDir.mkdirs()
-
-        val cleanId = item.id.replace("[^a-zA-Z0-9]".toRegex(), "_")
-        val tempFile = File(tempDir, "play_${cleanId}$ext")
-
-        if (tempFile.exists() && tempFile.length() > 0) {
-            return tempFile
-        }
-
-        val partFile = File(tempDir, "play_${cleanId}.part")
-        try {
-            if (partFile.exists()) partFile.delete()
-            VaultCryptoManager.decryptFileToTempFile(encryptedFile, partFile, key)
-            if (partFile.exists() && partFile.length() > 0) {
-                if (tempFile.exists()) tempFile.delete()
-                partFile.renameTo(tempFile)
-                tempFile.deleteOnExit()
-                return tempFile
-            }
-        } catch (_: Exception) {
-            try { if (partFile.exists()) partFile.delete() } catch (_: Exception) {}
-        }
+        val file = File(item.vaultPath)
+        if (file.exists() && file.length() > 0) return file
         return null
     }
 
@@ -663,15 +677,31 @@ class PrivacyVaultManager private constructor(context: Context) {
     }
 
     private fun loadVaultItemsFromStorage(): List<PrivacyVaultItem> {
-        val key = activeVaultKey
-        val itemsFile = File(getPersistentVaultRootDir(), "vault_items.enc")
-
         val list = mutableListOf<PrivacyVaultItem>()
 
-        if (itemsFile.exists() && key != null) {
+        // 1. Try loading from vault_items.json
+        val jsonFile = File(getPersistentVaultRootDir(), "vault_items.json")
+        var jsonStr = if (jsonFile.exists()) jsonFile.readText() else null
+
+        // 2. Try encrypted legacy if upgrading/downgrading
+        if (jsonStr.isNullOrBlank()) {
+            val key = activeVaultKey
+            val itemsEncFile = File(getPersistentVaultRootDir(), "vault_items.enc")
+            if (itemsEncFile.exists() && key != null) {
+                try {
+                    val encHex = itemsEncFile.readText()
+                    jsonStr = VaultCryptoManager.decryptString(encHex, key)
+                } catch (_: Exception) {}
+            }
+        }
+
+        // 3. Fallback to prefs
+        if (jsonStr.isNullOrBlank()) {
+            jsonStr = prefs.getString("privacy_vault_items_json", null)
+        }
+
+        if (!jsonStr.isNullOrBlank()) {
             try {
-                val encHex = itemsFile.readText()
-                val jsonStr = VaultCryptoManager.decryptString(encHex, key)
                 val jsonArray = JSONArray(jsonStr)
                 for (i in 0 until jsonArray.length()) {
                     val obj = jsonArray.getJSONObject(i)
@@ -679,6 +709,8 @@ class PrivacyVaultManager private constructor(context: Context) {
                         id = obj.getString("id"),
                         fileName = obj.getString("fileName"),
                         originalPath = obj.getString("originalPath"),
+                        originalUriString = obj.optString("originalUriString", ""),
+                        originalMediaId = obj.optString("originalMediaId", ""),
                         vaultPath = obj.getString("vaultPath"),
                         mediaType = obj.getString("mediaType"),
                         sizeBytes = obj.getLong("sizeBytes"),
@@ -690,43 +722,14 @@ class PrivacyVaultManager private constructor(context: Context) {
                     }
                 }
             } catch (_: Exception) {}
-        } else {
-            val legacyJson = prefs.getString("privacy_vault_items_json", null)
-            if (!legacyJson.isNullOrBlank()) {
-                try {
-                    val jsonArray = JSONArray(legacyJson)
-                    for (i in 0 until jsonArray.length()) {
-                        val obj = jsonArray.getJSONObject(i)
-                        val item = PrivacyVaultItem(
-                            id = obj.getString("id"),
-                            fileName = obj.getString("fileName"),
-                            originalPath = obj.getString("originalPath"),
-                            vaultPath = obj.getString("vaultPath"),
-                            mediaType = obj.getString("mediaType"),
-                            sizeBytes = obj.getLong("sizeBytes"),
-                            durationMs = obj.optLong("durationMs", 0L),
-                            dateAdded = obj.optLong("dateAdded", System.currentTimeMillis())
-                        )
-                        if (File(item.vaultPath).exists()) {
-                            list.add(item)
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
         }
         return list
     }
 
     /**
-     * RESTORES a file from Privacy Vault back to normal phone storage:
-     * 1. Decrypts file using AES-256-GCM.
-     * 2. Writes decrypted file back to Movies/F2W, Music/F2W, or Pictures/F2W.
-     * 3. Verifies copy was successful.
-     * 4. Deletes encrypted vault file.
-     * 5. Triggers MediaScannerConnection.
+     * RESTORES a file from Privacy Vault back to normal phone storage.
      */
     suspend fun restoreVaultItemToDevice(item: PrivacyVaultItem): Boolean = withContext(Dispatchers.IO) {
-        val key = activeVaultKey ?: return@withContext false
         val vaultFile = File(item.vaultPath)
         if (!vaultFile.exists()) {
             saveVaultItems(getVaultItems().filter { it.id != item.id })
@@ -760,8 +763,10 @@ class PrivacyVaultManager private constructor(context: Context) {
             }
 
             val restoredFile = getUniqueTargetFile(targetDir, item.fileName)
-            restoredFile.outputStream().use { restoredOut ->
-                VaultCryptoManager.decryptFileToStream(vaultFile, restoredOut, key)
+            vaultFile.inputStream().use { input ->
+                restoredFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
             }
 
             if (restoredFile.exists() && restoredFile.length() > 0L) {
@@ -817,6 +822,8 @@ class PrivacyVaultManager private constructor(context: Context) {
             obj.put("id", item.id)
             obj.put("fileName", item.fileName)
             obj.put("originalPath", item.originalPath)
+            obj.put("originalUriString", item.originalUriString)
+            obj.put("originalMediaId", item.originalMediaId)
             obj.put("vaultPath", item.vaultPath)
             obj.put("mediaType", item.mediaType)
             obj.put("sizeBytes", item.sizeBytes)
@@ -825,12 +832,9 @@ class PrivacyVaultManager private constructor(context: Context) {
             jsonArray.put(obj)
         }
 
-        if (key != null) {
-            try {
-                val encHex = VaultCryptoManager.encryptString(jsonArray.toString(), key)
-                itemsFile.writeText(encHex)
-            } catch (_: Exception) {}
-        }
+        try {
+            File(getPersistentVaultRootDir(), "vault_items.json").writeText(jsonArray.toString())
+        } catch (_: Exception) {}
         prefs.edit().putString("privacy_vault_items_json", jsonArray.toString()).apply()
     }
 

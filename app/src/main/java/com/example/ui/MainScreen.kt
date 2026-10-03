@@ -141,7 +141,11 @@ fun MainScreen(
 
     if (showSettingsPage) {
         SettingsScreen(
-            onBack = { showSettingsPage = false }
+            onBack = { showSettingsPage = false },
+            onNavigateToPrivacy = {
+                showSettingsPage = false
+                selectedTab = NavTab.PRIVACY
+            }
         )
         return
     }
